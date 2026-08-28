@@ -1,8 +1,8 @@
 import express from "express";
-import authRoute from "./controllers/auth.controller.js";
 import { errorHandler } from "./middlewares/error.middleware.js";
 import { notFound } from "./middlewares/notFound.middleware.js";
 import { requestMdw } from "./middlewares/request.middlewares.js";
+import authRoute from "./routes/auth.route.js";
 const app = express();
 app.use(express.json());
 app.use(requestMdw);
