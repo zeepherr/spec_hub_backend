@@ -90,7 +90,7 @@ export const login = async (req, res, next) => {
   res.cookie("refreshToken", refreshtoken, refreshCookieOptions);
   res.status(200).json({
     message: "Login Successful",
-    token,
+    accessToken: token,
     user: {
       id: haveUser.id,
       email: haveUser.email,
@@ -119,7 +119,7 @@ export const refresh = async (req, res, next) => {
     return next(createHttpError(403, "Account is inactive"));
   }
   const accessToken = await createAccessToken(session.user);
-  const { password, isActive, createdAt, updatedAt, ...userData } =
+  const { passwordHash, isActive, createdAt, updatedAt, ...userData } =
     session.user;
   return res.status(200).json({
     accessToken,
@@ -201,7 +201,7 @@ export const verifyEmail = async (req, res, next) => {
     return next(error);
   }
   const pendindUser = await createUserFromPending(pending);
-  const { password: pw, createdAt, ...userData } = pendindUser;
+  const { passwordHash: pw, createdAt, ...userData } = pendindUser;
   return res.status(201).json({
     message: "Register success.Please Login",
     user: userData,
