@@ -175,7 +175,7 @@ model Category {
 }
 
 model Listing {
-  id                 Int                     @id @default(autoincrement())
+  id                 String                  @id @default(uuid())
   sellerId           String
   categoryId         Int
   title              String
@@ -204,7 +204,7 @@ model Listing {
 
 model ListingImage {
   id        Int      @id @default(autoincrement())
-  listingId Int
+  listingId String
   imageUrl  String
   sortOrder Int      @default(0)
   isCover   Boolean  @default(false)
@@ -231,7 +231,7 @@ model ConditionQuestion {
 
 model SellerConditionAnswer {
   id          Int               @id @default(autoincrement())
-  listingId   Int
+  listingId   String
   questionId  Int
   answerValue String
   score       Decimal           @db.Decimal(5, 2)
@@ -246,7 +246,7 @@ model SellerConditionAnswer {
 
 model Conversation {
   id           Int                       @id @default(autoincrement())
-  listingId    Int?
+  listingId    String?
   orderId      Int?
   createdById  String
   createdAt    DateTime                  @default(now())
@@ -294,7 +294,7 @@ model Message {
 model Order {
   id            Int            @id @default(autoincrement())
   orderNumber   String         @unique
-  listingId     Int
+  listingId     String
   buyerId       String
   sellerId      String
   status        OrderStatus    @default(PENDING)
