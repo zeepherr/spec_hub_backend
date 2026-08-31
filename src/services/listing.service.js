@@ -7,3 +7,98 @@ export const findListingsByCatId = async (catId) => {
     },
   });
 };
+
+export const createListing = async (data) => {
+  return prisma.listing.create({
+    data,
+    include: {
+      category: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  });
+};
+
+export const findListingsBySeller = async (sellerId) => {
+  return prisma.listing.findMany({
+    where: {
+      sellerId,
+    },
+
+    include: {
+      category: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      images: {
+        orderBy: {
+          sortOrder: "asc",
+        },
+      },
+    },
+
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+};
+
+export const findListingById = async (listingId) => {
+  return prisma.listing.findUnique({
+    where: {
+      id: listingId,
+    },
+
+    include: {
+      category: {
+        select: {
+          id: true,
+          name: true,
+          isActive: true,
+        },
+      },
+
+      images: {
+        orderBy: {
+          sortOrder: "asc",
+        },
+      },
+
+      conditionAnswers: {
+        include: {
+          question: true,
+        },
+      },
+    },
+  });
+};
+
+export const updateListing = async (listingId, data) => {
+  return prisma.listing.update({
+    where: {
+      id: listingId,
+    },
+    data,
+  });
+};
+
+//outer uses
+export const findListingForConditionAnswers = (listingId) => {
+  return prisma.listing.findUnique({
+    where: {
+      id: listingId,
+    },
+
+    select: {
+      id: true,
+      sellerId: true,
+      categoryId: true,
+      status: true,
+    },
+  });
+};

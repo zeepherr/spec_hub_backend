@@ -15,6 +15,8 @@ export const config = {
   r2_public_url: process.env.R2_PUBLIC_URL || "",
 
   client_url: process.env.CLIENT_URL || "http://localhost:5173",
+  gemini_api: process.env.GEMINI_API_KEY || "",
+  gemini_model: process.env.GEMINI_MODEL || "",
 };
 
 export const corsOptions = {
