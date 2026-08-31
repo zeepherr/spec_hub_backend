@@ -205,39 +205,45 @@ model Listing {
 model ListingImage {
   id        Int      @id @default(autoincrement())
   listingId String
-  imageUrl  String
+  imageKey  String   @unique
   sortOrder Int      @default(0)
   isCover   Boolean  @default(false)
   createdAt DateTime @default(now())
-  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
 
   @@index([listingId])
 }
 
 model ConditionQuestion {
-  id         Int                     @id @default(autoincrement())
+  id         Int        @id @default(autoincrement())
   categoryId Int
   label      String
   answerType AnswerType
-  weight     Decimal                 @db.Decimal(5, 2)
-  isActive   Boolean                 @default(true)
-  createdAt  DateTime                @default(now())
-  updatedAt  DateTime                @updatedAt
-  category   Category                @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  answers    SellerConditionAnswer[]
+  options    Json?
+  isRequired Boolean    @default(true)
+  isActive   Boolean    @default(true)
+  sortOrder  Int        @default(0)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  answers SellerConditionAnswer[]
 
   @@index([categoryId])
 }
 
 model SellerConditionAnswer {
-  id          Int               @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   listingId   String
   questionId  Int
-  answerValue String
-  score       Decimal           @db.Decimal(5, 2)
-  createdAt   DateTime          @default(now())
-  listing     Listing           @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  question    ConditionQuestion @relation(fields: [questionId], references: [id])
+  answerValue Json
+  createdAt   DateTime @default(now())
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  question ConditionQuestion @relation(fields: [questionId], references: [id])
 
   @@unique([listingId, questionId])
   @@index([listingId])

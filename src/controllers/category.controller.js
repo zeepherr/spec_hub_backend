@@ -39,7 +39,6 @@ export const getAllCategoriesAdmin = async (req, res, next) => {
   });
 };
 export const getAllCategoriesForUser = async (req, res, next) => {
-  console.log(req.user);
   const categoies = await findAllcategories({ isActive: true });
   let data = [];
   if (categoies.length > 0) {

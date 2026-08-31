@@ -49,7 +49,7 @@ export const errorHandler = (err, req, res, next) => {
       return res.status(400).json({
         success: false,
         code: "TOO_MANY_IMAGES",
-        message: "Only one image can be uploaded.",
+        message: "A listing can have a maximum of 5 images.",
       });
     }
 
