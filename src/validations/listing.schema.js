@@ -1,11 +1,5 @@
 import { z } from "zod";
 
-/*
-|--------------------------------------------------------------------------
-| CREATE LISTING
-|--------------------------------------------------------------------------
-*/
-
 export const createListingSchema = z.object({
   body: z.object({
     categoryId: z.coerce.number().int().positive(),
@@ -32,23 +26,11 @@ export const createListingSchema = z.object({
   }),
 });
 
-/*
-|--------------------------------------------------------------------------
-| LISTING ID
-|--------------------------------------------------------------------------
-*/
-
 export const listingIdSchema = z.object({
   params: z.object({
     listingId: z.uuid(),
   }),
 });
-
-/*
-|--------------------------------------------------------------------------
-| UPDATE LISTING
-|--------------------------------------------------------------------------
-*/
 
 export const updateListingSchema = z.object({
   params: z.object({
@@ -75,3 +57,36 @@ export const updateListingSchema = z.object({
       message: "At least one field must be provided",
     }),
 });
+
+export const publishListingById = (listingId) => {
+  return prisma.listing.update({
+    where: {
+      id: listingId,
+    },
+
+    data: {
+      status: "ACTIVE",
+    },
+
+    include: {
+      category: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+
+      images: {
+        orderBy: {
+          sortOrder: "asc",
+        },
+      },
+
+      conditionAnswers: {
+        include: {
+          question: true,
+        },
+      },
+    },
+  });
+};

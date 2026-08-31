@@ -4,6 +4,7 @@ import {
   createDraftListing,
   getMyListingById,
   getMyListings,
+  publishListing,
   updateDraftListing,
 } from "../controllers/listing.controller.js";
 
@@ -12,6 +13,7 @@ import {
   saveListingConditionAnswers,
 } from "../controllers/sellerConditionAnswer.controller.js";
 
+import { analyzeListingCondition } from "../controllers/listingConditionAnalysis.controller.js";
 import { uploadListingImages } from "../controllers/listingImage.controller.js";
 import { authenticate } from "../middlewares/authenticate.middleware.js";
 import {
@@ -35,6 +37,8 @@ app.post(
   listingImageUpload.array("images", MAX_LISTING_IMAGES),
   uploadListingImages,
 );
+app.post("/:listingId/analyze-condition", analyzeListingCondition);
+app.post("/:listingId/publish", publishListing);
 
 app.get("/:listingId", getMyListingById);
 

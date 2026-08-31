@@ -123,6 +123,74 @@ export const updateListingAndClearConditionAnswers = (listingId, data) => {
     });
   });
 };
+export const findListingForConditionAnalysis = (listingId) => {
+  return prisma.listing.findUnique({
+    where: {
+      id: listingId,
+    },
+
+    include: {
+      category: {
+        select: {
+          id: true,
+          name: true,
+          isActive: true,
+        },
+      },
+
+      images: {
+        orderBy: {
+          sortOrder: "asc",
+        },
+      },
+
+      conditionAnswers: {
+        include: {
+          question: {
+            select: {
+              id: true,
+              label: true,
+              answerType: true,
+              isRequired: true,
+              isActive: true,
+            },
+          },
+        },
+      },
+    },
+  });
+};
+
+export const updateListingConditionEstimate = (listingId, data) => {
+  return prisma.listing.update({
+    where: {
+      id: listingId,
+    },
+
+    data,
+
+    include: {
+      category: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+
+      images: {
+        orderBy: {
+          sortOrder: "asc",
+        },
+      },
+
+      conditionAnswers: {
+        include: {
+          question: true,
+        },
+      },
+    },
+  });
+};
 
 //outer uses
 export const findListingForConditionAnswers = (listingId) => {
@@ -136,6 +204,38 @@ export const findListingForConditionAnswers = (listingId) => {
       sellerId: true,
       categoryId: true,
       status: true,
+    },
+  });
+};
+export const publishListingById = (listingId) => {
+  return prisma.listing.update({
+    where: {
+      id: listingId,
+    },
+
+    data: {
+      status: "ACTIVE",
+    },
+
+    include: {
+      category: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+
+      images: {
+        orderBy: {
+          sortOrder: "asc",
+        },
+      },
+
+      conditionAnswers: {
+        include: {
+          question: true,
+        },
+      },
     },
   });
 };

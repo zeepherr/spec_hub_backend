@@ -93,3 +93,17 @@ export const upsertConditionAnswers = (listingId, answers) => {
     ),
   );
 };
+
+export const findRequiredQuestionsByCategory = (categoryId) => {
+  return prisma.conditionQuestion.findMany({
+    where: {
+      categoryId,
+      isActive: true,
+      isRequired: true,
+    },
+
+    select: {
+      id: true,
+    },
+  });
+};

@@ -1,4 +1,8 @@
 import { findCategoryBy } from "../services/category.service.js";
+import {
+  findListingForConditionAnalysis,
+  publishListingById,
+} from "../services/listing.service.js";
 
 import {
   createListing,
@@ -8,6 +12,7 @@ import {
   updateListingAndClearConditionAnswers,
 } from "../services/listing.service.js";
 
+import { findRequiredQuestionsByCategory } from "../services/sellerConditionAnswer.service.js";
 import {
   createListingSchema,
   listingIdSchema,
@@ -289,6 +294,163 @@ export const updateDraftListing = async (req, res, next) => {
       success: true,
       message: "Draft listing updated successfully",
       data: updatedListing,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const publishListing = async (req, res, next) => {
+  try {
+    /*
+    |--------------------------------------------------------------------------
+    | 1. Validate listing ID
+    |--------------------------------------------------------------------------
+    */
+
+    const validation = listingIdSchema.safeParse({
+      params: req.params,
+    });
+
+    if (!validation.success) {
+      return res.status(400).json({
+        success: false,
+        code: "VALIDATION_ERROR",
+        message: "Invalid listing id",
+        errors: validation.error.flatten(),
+      });
+    }
+
+    const { listingId } = validation.data.params;
+
+    /*
+    |--------------------------------------------------------------------------
+    | 2. Load listing
+    |--------------------------------------------------------------------------
+    */
+
+    const listing = await findListingForConditionAnalysis(listingId);
+
+    if (!listing) {
+      return res.status(404).json({
+        success: false,
+        code: "LISTING_NOT_FOUND",
+        message: "Listing not found",
+      });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | 3. Ownership
+    |--------------------------------------------------------------------------
+    */
+
+    if (listing.sellerId !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        code: "FORBIDDEN",
+        message: "You cannot publish this listing",
+      });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | 4. Must be DRAFT
+    |--------------------------------------------------------------------------
+    */
+
+    if (listing.status !== "DRAFT") {
+      return res.status(400).json({
+        success: false,
+        code: "LISTING_NOT_PUBLISHABLE",
+        message: "Only draft listings can be published",
+      });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | 5. Category must still be active
+    |--------------------------------------------------------------------------
+    */
+
+    if (!listing.category.isActive) {
+      return res.status(400).json({
+        success: false,
+        code: "CATEGORY_INACTIVE",
+        message: "This listing category is currently unavailable",
+      });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | 6. Check required condition questions
+    |--------------------------------------------------------------------------
+    */
+
+    const requiredQuestions = await findRequiredQuestionsByCategory(
+      listing.categoryId,
+    );
+
+    const answeredQuestionIds = new Set(
+      listing.conditionAnswers.map((answer) => answer.questionId),
+    );
+
+    const missingRequiredQuestions = requiredQuestions.filter(
+      (question) => !answeredQuestionIds.has(question.id),
+    );
+
+    if (missingRequiredQuestions.length > 0) {
+      return res.status(400).json({
+        success: false,
+        code: "CONDITION_ANSWERS_INCOMPLETE",
+        message:
+          "Please answer all required condition questions before publishing",
+      });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | 7. Require image
+    |--------------------------------------------------------------------------
+    */
+
+    if (listing.images.length === 0) {
+      return res.status(400).json({
+        success: false,
+        code: "LISTING_IMAGES_REQUIRED",
+        message: "Upload at least one image before publishing",
+      });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | 8. Require AI condition analysis
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+      listing.estimatedCondition === null ||
+      listing.estimatedScore === null
+    ) {
+      return res.status(400).json({
+        success: false,
+        code: "CONDITION_ANALYSIS_REQUIRED",
+        message: "Analyze the product condition before publishing",
+      });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | 9. Publish
+    |--------------------------------------------------------------------------
+    */
+
+    const publishedListing = await publishListingById(listingId);
+
+    return res.status(200).json({
+      success: true,
+      message: "Listing published successfully",
+      data: publishedListing,
     });
   } catch (error) {
     next(error);
