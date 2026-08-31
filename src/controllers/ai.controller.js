@@ -2,12 +2,19 @@ import {
   analyzeProductImage,
   generateGeminiText,
 } from "../providers/gemini.provider.js";
+
 import { findActiveCategories } from "../services/category.service.js";
 
 import {
   aiProductResultSchema,
   validateProductImage,
 } from "../validations/ai.schema.js";
+
+/*
+|--------------------------------------------------------------------------
+| TEST CONNECTION
+|--------------------------------------------------------------------------
+*/
 
 export const testAIConnection = async (req, res, next) => {
   try {
@@ -18,6 +25,7 @@ export const testAIConnection = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "AI connection works",
+
       data: {
         response: result,
       },
@@ -27,8 +35,20 @@ export const testAIConnection = async (req, res, next) => {
   }
 };
 
+/*
+|--------------------------------------------------------------------------
+| IDENTIFY PRODUCT FOR FORM AUTOFILL
+|--------------------------------------------------------------------------
+*/
+
 export const identifyProductImage = async (req, res, next) => {
   try {
+    /*
+    |--------------------------------------------------------------------------
+    | 1. Validate uploaded image
+    |--------------------------------------------------------------------------
+    */
+
     const imageValidation = await validateProductImage(req.file);
 
     if (!imageValidation.success) {
@@ -41,6 +61,13 @@ export const identifyProductImage = async (req, res, next) => {
     }
 
     const { buffer, mimetype } = imageValidation.data;
+
+    /*
+    |--------------------------------------------------------------------------
+    | 2. Get active marketplace categories
+    |--------------------------------------------------------------------------
+    */
+
     const categories = await findActiveCategories();
 
     if (categories.length === 0) {
@@ -53,16 +80,28 @@ export const identifyProductImage = async (req, res, next) => {
 
     const categoryNames = categories.map((category) => category.name);
 
+    /*
+    |--------------------------------------------------------------------------
+    | 3. Analyze product image
+    |--------------------------------------------------------------------------
+    */
+
     const aiResponse = await analyzeProductImage({
       buffer,
       mimetype,
       categories: categoryNames,
     });
 
-    let parsedAIResponse;
+    /*
+    |--------------------------------------------------------------------------
+    | 4. Parse AI JSON
+    |--------------------------------------------------------------------------
+    */
+
+    let parsedProduct;
 
     try {
-      parsedAIResponse = JSON.parse(aiResponse);
+      parsedProduct = JSON.parse(aiResponse);
     } catch {
       return res.status(502).json({
         success: false,
@@ -71,21 +110,58 @@ export const identifyProductImage = async (req, res, next) => {
       });
     }
 
-    const aiValidation = aiProductResultSchema.safeParse(parsedAIResponse);
+    /*
+    |--------------------------------------------------------------------------
+    | 5. Validate AI result
+    |--------------------------------------------------------------------------
+    */
 
-    if (!aiValidation.success) {
+    const productValidation = aiProductResultSchema.safeParse(parsedProduct);
+
+    if (!productValidation.success) {
       return res.status(502).json({
         success: false,
         code: "INVALID_AI_RESPONSE",
-        message: "AI returned an unexpected response format",
-        errors: aiValidation.error.flatten(),
+        message: "AI returned an unexpected product format",
+        errors: productValidation.error.flatten(),
       });
     }
 
+    const product = productValidation.data;
+
+    /*
+    |--------------------------------------------------------------------------
+    | 6. Match AI category with actual DB category
+    |--------------------------------------------------------------------------
+    */
+
+    let matchedCategory = null;
+
+    if (product.category) {
+      matchedCategory =
+        categories.find(
+          (category) =>
+            category.name.toLowerCase() === product.category.toLowerCase(),
+        ) ?? null;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | 7. Return only fields needed by seller form
+    |--------------------------------------------------------------------------
+    */
+
     return res.status(200).json({
       success: true,
-      message: "Product image analyzed successfully",
-      data: aiValidation.data,
+      message: "Product analyzed successfully",
+
+      data: {
+        title: product.title,
+        category: matchedCategory,
+        brand: product.brand,
+        model: product.model,
+        description: product.description,
+      },
     });
   } catch (error) {
     next(error);

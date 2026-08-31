@@ -1,14 +1,22 @@
 import { findListingForConditionAnswers } from "../services/listing.service.js";
+
 import {
   findActiveQuestionsByCategory,
   findAnswersByListing,
   findQuestionsByIds,
   upsertConditionAnswers,
 } from "../services/sellerConditionAnswer.service.js";
+
 import {
   listingConditionParamsSchema,
   saveConditionAnswersSchema,
 } from "../validations/sellerConditionAnswer.schema.js";
+
+/*
+|--------------------------------------------------------------------------
+| GET CONDITION QUESTIONS FOR LISTING
+|--------------------------------------------------------------------------
+*/
 
 export const getListingConditionQuestions = async (req, res, next) => {
   try {
@@ -27,7 +35,12 @@ export const getListingConditionQuestions = async (req, res, next) => {
 
     const { listingId } = validation.data.params;
 
-    // 1. Find listing
+    /*
+      |--------------------------------------------------------------------------
+      | Find listing
+      |--------------------------------------------------------------------------
+      */
+
     const listing = await findListingForConditionAnswers(listingId);
 
     if (!listing) {
@@ -38,7 +51,12 @@ export const getListingConditionQuestions = async (req, res, next) => {
       });
     }
 
-    // 2. Ownership
+    /*
+      |--------------------------------------------------------------------------
+      | Ownership
+      |--------------------------------------------------------------------------
+      */
+
     if (listing.sellerId !== req.user.id) {
       return res.status(403).json({
         success: false,
@@ -47,7 +65,12 @@ export const getListingConditionQuestions = async (req, res, next) => {
       });
     }
 
-    // 3. Only draft listing for now
+    /*
+      |--------------------------------------------------------------------------
+      | Only DRAFT
+      |--------------------------------------------------------------------------
+      */
+
     if (listing.status !== "DRAFT") {
       return res.status(400).json({
         success: false,
@@ -57,17 +80,32 @@ export const getListingConditionQuestions = async (req, res, next) => {
       });
     }
 
-    // 4. Load active questions
+    /*
+      |--------------------------------------------------------------------------
+      | Load questions
+      |--------------------------------------------------------------------------
+      */
+
     const questions = await findActiveQuestionsByCategory(listing.categoryId);
 
-    // 5. Load existing seller answers
+    /*
+      |--------------------------------------------------------------------------
+      | Load current answers
+      |--------------------------------------------------------------------------
+      */
+
     const existingAnswers = await findAnswersByListing(listingId);
 
     const answerMap = new Map(
       existingAnswers.map((answer) => [answer.questionId, answer.answerValue]),
     );
 
-    // 6. Merge question + current answer
+    /*
+      |--------------------------------------------------------------------------
+      | Combine questions + answers
+      |--------------------------------------------------------------------------
+      */
+
     const data = questions.map((question) => ({
       id: question.id,
       label: question.label,
@@ -75,6 +113,7 @@ export const getListingConditionQuestions = async (req, res, next) => {
       options: question.options,
       isRequired: question.isRequired,
       sortOrder: question.sortOrder,
+
       answerValue: answerMap.get(question.id) ?? null,
     }));
 
@@ -86,6 +125,12 @@ export const getListingConditionQuestions = async (req, res, next) => {
     next(error);
   }
 };
+
+/*
+|--------------------------------------------------------------------------
+| SAVE / UPDATE CONDITION ANSWERS
+|--------------------------------------------------------------------------
+*/
 
 export const saveListingConditionAnswers = async (req, res, next) => {
   try {
@@ -107,7 +152,12 @@ export const saveListingConditionAnswers = async (req, res, next) => {
 
     const { answers } = validation.data.body;
 
-    // 1. Find listing
+    /*
+      |--------------------------------------------------------------------------
+      | Find listing
+      |--------------------------------------------------------------------------
+      */
+
     const listing = await findListingForConditionAnswers(listingId);
 
     if (!listing) {
@@ -118,7 +168,12 @@ export const saveListingConditionAnswers = async (req, res, next) => {
       });
     }
 
-    // 2. Ownership
+    /*
+      |--------------------------------------------------------------------------
+      | Ownership
+      |--------------------------------------------------------------------------
+      */
+
     if (listing.sellerId !== req.user.id) {
       return res.status(403).json({
         success: false,
@@ -127,7 +182,12 @@ export const saveListingConditionAnswers = async (req, res, next) => {
       });
     }
 
-    // 3. Only DRAFT
+    /*
+      |--------------------------------------------------------------------------
+      | Only DRAFT
+      |--------------------------------------------------------------------------
+      */
+
     if (listing.status !== "DRAFT") {
       return res.status(400).json({
         success: false,
@@ -137,17 +197,23 @@ export const saveListingConditionAnswers = async (req, res, next) => {
       });
     }
 
-    // 4. Get requested questions from DB
+    /*
+      |--------------------------------------------------------------------------
+      | Requested question IDs
+      |--------------------------------------------------------------------------
+      */
+
     const questionIds = answers.map((answer) => answer.questionId);
 
     const questions = await findQuestionsByIds(listing.categoryId, questionIds);
 
     /*
-      This catches:
-      - question doesn't exist
-      - question belongs to another category
-      - question is disabled
-    */
+        This rejects:
+
+        - unknown question
+        - question from another category
+        - disabled question
+      */
 
     if (questions.length !== questionIds.length) {
       return res.status(400).json({
@@ -161,14 +227,22 @@ export const saveListingConditionAnswers = async (req, res, next) => {
       questions.map((question) => [question.id, question]),
     );
 
+    /*
+      |--------------------------------------------------------------------------
+      | Validate value against question type
+      |--------------------------------------------------------------------------
+      */
+
     for (const answer of answers) {
       const question = questionMap.get(answer.questionId);
 
       const value = answer.answerValue;
 
       /*
-        BOOLEAN
-      */
+        |--------------------------------------------------------------------------
+        | BOOLEAN
+        |--------------------------------------------------------------------------
+        */
 
       if (question.answerType === "BOOLEAN" && typeof value !== "boolean") {
         return res.status(400).json({
@@ -179,8 +253,10 @@ export const saveListingConditionAnswers = async (req, res, next) => {
       }
 
       /*
-        NUMBER
-      */
+        |--------------------------------------------------------------------------
+        | NUMBER
+        |--------------------------------------------------------------------------
+        */
 
       if (question.answerType === "NUMBER" && typeof value !== "number") {
         return res.status(400).json({
@@ -191,8 +267,10 @@ export const saveListingConditionAnswers = async (req, res, next) => {
       }
 
       /*
-        TEXT
-      */
+        |--------------------------------------------------------------------------
+        | TEXT
+        |--------------------------------------------------------------------------
+        */
 
       if (question.answerType === "TEXT" && typeof value !== "string") {
         return res.status(400).json({
@@ -203,8 +281,10 @@ export const saveListingConditionAnswers = async (req, res, next) => {
       }
 
       /*
-        SELECT
-      */
+        |--------------------------------------------------------------------------
+        | SELECT
+        |--------------------------------------------------------------------------
+        */
 
       if (question.answerType === "SELECT") {
         if (typeof value !== "string" || !question.options.includes(value)) {
@@ -217,7 +297,12 @@ export const saveListingConditionAnswers = async (req, res, next) => {
       }
     }
 
-    // 6. Save/update answers
+    /*
+      |--------------------------------------------------------------------------
+      | Save/update answers
+      |--------------------------------------------------------------------------
+      */
+
     const savedAnswers = await upsertConditionAnswers(listingId, answers);
 
     return res.status(200).json({

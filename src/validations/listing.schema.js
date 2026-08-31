@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+/*
+|--------------------------------------------------------------------------
+| CREATE LISTING
+|--------------------------------------------------------------------------
+*/
+
 export const createListingSchema = z.object({
   body: z.object({
     categoryId: z.coerce.number().int().positive(),
@@ -26,11 +32,23 @@ export const createListingSchema = z.object({
   }),
 });
 
+/*
+|--------------------------------------------------------------------------
+| LISTING ID
+|--------------------------------------------------------------------------
+*/
+
 export const listingIdSchema = z.object({
   params: z.object({
     listingId: z.uuid(),
   }),
 });
+
+/*
+|--------------------------------------------------------------------------
+| UPDATE LISTING
+|--------------------------------------------------------------------------
+*/
 
 export const updateListingSchema = z.object({
   params: z.object({

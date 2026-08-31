@@ -1,18 +1,10 @@
 import { prisma } from "../lib/prisma.js";
-export const findListingForConditionAnswers = (listingId) => {
-  return prisma.listing.findUnique({
-    where: {
-      id: listingId,
-    },
 
-    select: {
-      id: true,
-      sellerId: true,
-      categoryId: true,
-      status: true,
-    },
-  });
-};
+/*
+|--------------------------------------------------------------------------
+| FIND ACTIVE QUESTIONS BY CATEGORY
+|--------------------------------------------------------------------------
+*/
 
 export const findActiveQuestionsByCategory = (categoryId) => {
   return prisma.conditionQuestion.findMany({
@@ -32,6 +24,12 @@ export const findActiveQuestionsByCategory = (categoryId) => {
   });
 };
 
+/*
+|--------------------------------------------------------------------------
+| FIND SPECIFIC ACTIVE QUESTIONS
+|--------------------------------------------------------------------------
+*/
+
 export const findQuestionsByIds = (categoryId, questionIds) => {
   return prisma.conditionQuestion.findMany({
     where: {
@@ -46,6 +44,12 @@ export const findQuestionsByIds = (categoryId, questionIds) => {
   });
 };
 
+/*
+|--------------------------------------------------------------------------
+| FIND LISTING ANSWERS
+|--------------------------------------------------------------------------
+*/
+
 export const findAnswersByListing = (listingId) => {
   return prisma.sellerConditionAnswer.findMany({
     where: {
@@ -58,6 +62,12 @@ export const findAnswersByListing = (listingId) => {
     },
   });
 };
+
+/*
+|--------------------------------------------------------------------------
+| CREATE OR UPDATE ANSWERS
+|--------------------------------------------------------------------------
+*/
 
 export const upsertConditionAnswers = (listingId, answers) => {
   return prisma.$transaction(

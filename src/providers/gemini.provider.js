@@ -7,6 +7,12 @@ const ai = new GoogleGenAI({
 
 const model = config.gemini_model;
 
+/*
+|--------------------------------------------------------------------------
+| BASIC TEXT TEST
+|--------------------------------------------------------------------------
+*/
+
 export const generateGeminiText = async (prompt) => {
   const response = await ai.models.generateContent({
     model,
@@ -15,6 +21,12 @@ export const generateGeminiText = async (prompt) => {
 
   return response.text;
 };
+
+/*
+|--------------------------------------------------------------------------
+| PRODUCT AUTOFILL FROM IMAGE
+|--------------------------------------------------------------------------
+*/
 
 export const analyzeProductImage = async ({ buffer, mimetype, categories }) => {
   const response = await ai.models.generateContent({
@@ -33,30 +45,55 @@ Available marketplace categories:
 
 ${categories.map((category) => `- ${category}`).join("\n")}
 
-Return JSON only using this structure:
+Return valid JSON only.
+
+Required structure:
 
 {
-  "category": "one exact category name from the list above, or null",
+  "category": "exact category name or null",
+  "title": "string",
   "brand": "string or null",
   "model": "string or null",
-  "title": "string",
-  "visibleSpecs": ["string"],
-  "uncertain": ["string"],
-  "confidence": 0.0
+  "description": "string"
 }
 
 Rules:
 
-- category MUST exactly match one of the available category names.
-- If the product does not clearly match any category, return null.
+CATEGORY:
+- Must exactly match one category from the provided list.
+- If no category clearly matches, return null.
 - Never invent a category.
-- Never invent brand or model.
-- If brand is unclear, return null.
-- If model is unclear, return null.
-- visibleSpecs must only contain visually supported information.
-- uncertain must describe information that cannot be confidently determined.
-- confidence must be between 0 and 1.
-- Return valid JSON only.
+
+TITLE:
+- Create a short marketplace-ready product title.
+- Include brand and model only when confidently identified.
+- Do not invent product information.
+
+BRAND:
+- Return the brand only when it can reasonably be identified.
+- Otherwise return null.
+
+MODEL:
+- Return the model only when it can reasonably be identified.
+- Otherwise return null.
+- Never guess an exact model from appearance alone.
+
+DESCRIPTION:
+- Create a short seller-editable marketplace description.
+- Mention only information reasonably visible from the image.
+- Do not say the product works unless that can actually be verified.
+- Do not invent:
+  - purchase date
+  - usage duration
+  - repair history
+  - internal specifications
+  - battery condition
+  - functional condition
+  - ownership history
+
+Return JSON only.
+Do not include markdown.
+Do not include code fences.
             `,
           },
 

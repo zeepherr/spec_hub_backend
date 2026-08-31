@@ -1,75 +1,103 @@
 import { z } from "zod";
 
-const answerTypeSchema = z.enum(["BOOLEAN", "NUMBER", "TEXT", "SELECT"]);
+const answerTypeSchema = z.enum(["TEXT", "NUMBER", "BOOLEAN", "SELECT"]);
+
+const categoryParamsSchema = z.object({
+  categoryId: z.coerce.number().int().positive(),
+});
+
+const questionRouteParamsSchema = categoryParamsSchema.extend({
+  questionId: z.coerce.number().int().positive(),
+});
 
 const optionsSchema = z
-  .array(z.string().trim().min(1))
-  .min(2, "SELECT question must have at least 2 options");
+  .array(z.string().trim().min(1, "Option cannot be empty"))
+  .min(1, "At least one option is required")
+  .refine(
+    (options) => new Set(options).size === options.length,
+    "Options cannot contain duplicates",
+  );
+
+/*
+|--------------------------------------------------------------------------
+| GET QUESTIONS BY CATEGORY
+|--------------------------------------------------------------------------
+*/
 
 export const categoryIdSchema = z.object({
-  params: z.object({
-    categoryId: z.coerce.number().int().positive(),
-  }),
+  params: categoryParamsSchema,
 });
+
+/*
+|--------------------------------------------------------------------------
+| GET QUESTION BY ID
+|--------------------------------------------------------------------------
+*/
 
 export const questionParamsSchema = z.object({
-  params: z.object({
-    categoryId: z.coerce.number().int().positive(),
-    questionId: z.coerce.number().int().positive(),
-  }),
+  params: questionRouteParamsSchema,
 });
 
-export const createConditionQuestionSchema = z.object({
-  params: z.object({
-    categoryId: z.coerce.number().int().positive(),
-  }),
+/*
+|--------------------------------------------------------------------------
+| CREATE QUESTION
+|--------------------------------------------------------------------------
+*/
+
+export const createConditionQuestionSchema = z
+  .object({
+    params: categoryParamsSchema,
+
+    body: z.object({
+      label: z.string().trim().min(1, "Question label is required"),
+
+      answerType: answerTypeSchema,
+
+      options: optionsSchema.nullable().optional(),
+
+      isRequired: z.boolean().default(false),
+
+      isActive: z.boolean().default(true),
+
+      sortOrder: z.coerce.number().int().min(0).default(0),
+    }),
+  })
+  .superRefine((data, ctx) => {
+    const { answerType, options } = data.body;
+
+    if (answerType === "SELECT" && (!options || options.length === 0)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["body", "options"],
+        message: "Options are required for SELECT questions",
+      });
+    }
+
+    if (answerType !== "SELECT" && options !== undefined && options !== null) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["body", "options"],
+        message: "Options are only allowed for SELECT questions",
+      });
+    }
+  });
+
+/*
+|--------------------------------------------------------------------------
+| UPDATE QUESTION
+|--------------------------------------------------------------------------
+*/
+
+export const updateConditionQuestionSchema = z.object({
+  params: questionRouteParamsSchema,
 
   body: z
     .object({
       label: z
         .string()
         .trim()
-        .min(3, "Question must be at least 3 characters")
-        .max(150, "Question must not exceed 150 characters"),
-
-      answerType: answerTypeSchema,
-
-      options: optionsSchema.optional(),
-
-      isRequired: z.boolean().optional().default(true),
-
-      isActive: z.boolean().optional().default(true),
-
-      sortOrder: z.coerce.number().int().min(0).optional().default(0),
-    })
-    .superRefine((data, ctx) => {
-      if (data.answerType === "SELECT" && !data.options) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["options"],
-          message: "Options are required for SELECT questions",
-        });
-      }
-
-      if (data.answerType !== "SELECT" && data.options) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["options"],
-          message: "Options are only allowed for SELECT questions",
-        });
-      }
-    }),
-});
-
-export const updateConditionQuestionSchema = z.object({
-  params: z.object({
-    categoryId: z.coerce.number().int().positive(),
-    questionId: z.coerce.number().int().positive(),
-  }),
-
-  body: z
-    .object({
-      label: z.string().trim().min(3).max(150).optional(),
+        .min(1, "Question label cannot be empty")
+        .optional(),
 
       answerType: answerTypeSchema.optional(),
 
@@ -79,16 +107,19 @@ export const updateConditionQuestionSchema = z.object({
 
       sortOrder: z.coerce.number().int().min(0).optional(),
     })
-    .refine((data) => Object.keys(data).length > 0, {
+    .refine((body) => Object.keys(body).length > 0, {
       message: "At least one field must be provided",
     }),
 });
 
+/*
+|--------------------------------------------------------------------------
+| UPDATE QUESTION STATUS
+|--------------------------------------------------------------------------
+*/
+
 export const updateConditionQuestionStatusSchema = z.object({
-  params: z.object({
-    categoryId: z.coerce.number().int().positive(),
-    questionId: z.coerce.number().int().positive(),
-  }),
+  params: questionRouteParamsSchema,
 
   body: z.object({
     isActive: z.boolean(),

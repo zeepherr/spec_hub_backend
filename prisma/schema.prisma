@@ -205,11 +205,12 @@ model Listing {
 model ListingImage {
   id        Int      @id @default(autoincrement())
   listingId String
-  imageUrl  String
+  imageKey  String   @unique
   sortOrder Int      @default(0)
   isCover   Boolean  @default(false)
   createdAt DateTime @default(now())
-  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
 
   @@index([listingId])
 }

@@ -1,9 +1,11 @@
 import { findCategoryBy } from "../services/category.service.js";
+
 import {
   createListing,
   findListingById,
   findListingsBySeller,
   updateListing,
+  updateListingAndClearConditionAnswers,
 } from "../services/listing.service.js";
 
 import {
@@ -30,10 +32,6 @@ export const createDraftListing = async (req, res, next) => {
     const { categoryId, title, description, brand, model, price, location } =
       validation.data.body;
 
-    /*
-      Category must exist.
-    */
-
     const category = await findCategoryBy("id", categoryId);
 
     if (!category) {
@@ -44,11 +42,6 @@ export const createDraftListing = async (req, res, next) => {
       });
     }
 
-    /*
-      Seller cannot create a new listing using
-      a disabled category.
-    */
-
     if (!category.isActive) {
       return res.status(400).json({
         success: false,
@@ -58,15 +51,20 @@ export const createDraftListing = async (req, res, next) => {
     }
 
     /*
-      Never accept sellerId from frontend.
-
-      Authentication determines ownership.
+    |--------------------------------------------------------------------------
+    | Create listing
+    |--------------------------------------------------------------------------
+    |
+    | sellerId comes from authenticated user.
+    | status is controlled by backend.
+    |
+    | estimatedCondition and estimatedScore are NOT provided here.
+    | Prisma will leave them null until AI condition analysis later.
+    |--------------------------------------------------------------------------
     */
 
-    const sellerId = req.user.id;
-
     const listing = await createListing({
-      sellerId,
+      sellerId: req.user.id,
       categoryId,
       title,
       description,
@@ -74,8 +72,6 @@ export const createDraftListing = async (req, res, next) => {
       model,
       price,
       location,
-
-      // Explicit for clarity.
       status: "DRAFT",
     });
 
@@ -89,6 +85,12 @@ export const createDraftListing = async (req, res, next) => {
   }
 };
 
+/*
+|--------------------------------------------------------------------------
+| GET MY LISTINGS
+|--------------------------------------------------------------------------
+*/
+
 export const getMyListings = async (req, res, next) => {
   try {
     const listings = await findListingsBySeller(req.user.id);
@@ -101,6 +103,12 @@ export const getMyListings = async (req, res, next) => {
     next(error);
   }
 };
+
+/*
+|--------------------------------------------------------------------------
+| GET MY LISTING BY ID
+|--------------------------------------------------------------------------
+*/
 
 export const getMyListingById = async (req, res, next) => {
   try {
@@ -130,7 +138,9 @@ export const getMyListingById = async (req, res, next) => {
     }
 
     /*
-      Ownership check.
+    |--------------------------------------------------------------------------
+    | Ownership
+    |--------------------------------------------------------------------------
     */
 
     if (listing.sellerId !== req.user.id) {
@@ -149,6 +159,12 @@ export const getMyListingById = async (req, res, next) => {
     next(error);
   }
 };
+
+/*
+|--------------------------------------------------------------------------
+| UPDATE DRAFT LISTING
+|--------------------------------------------------------------------------
+*/
 
 export const updateDraftListing = async (req, res, next) => {
   try {
@@ -171,7 +187,9 @@ export const updateDraftListing = async (req, res, next) => {
     const updateData = validation.data.body;
 
     /*
-      Find listing.
+    |--------------------------------------------------------------------------
+    | Find listing
+    |--------------------------------------------------------------------------
     */
 
     const listing = await findListingById(listingId);
@@ -185,7 +203,9 @@ export const updateDraftListing = async (req, res, next) => {
     }
 
     /*
-      Ownership.
+    |--------------------------------------------------------------------------
+    | Ownership
+    |--------------------------------------------------------------------------
     */
 
     if (listing.sellerId !== req.user.id) {
@@ -197,7 +217,9 @@ export const updateDraftListing = async (req, res, next) => {
     }
 
     /*
-      For now only DRAFT listings can use this endpoint.
+    |--------------------------------------------------------------------------
+    | Only DRAFT listings are editable
+    |--------------------------------------------------------------------------
     */
 
     if (listing.status !== "DRAFT") {
@@ -209,7 +231,9 @@ export const updateDraftListing = async (req, res, next) => {
     }
 
     /*
-      If category changes, validate the new category.
+    |--------------------------------------------------------------------------
+    | Check category when categoryId is being updated
+    |--------------------------------------------------------------------------
     */
 
     if (updateData.categoryId !== undefined) {
@@ -232,7 +256,34 @@ export const updateDraftListing = async (req, res, next) => {
       }
     }
 
-    const updatedListing = await updateListing(listingId, updateData);
+    /*
+    |--------------------------------------------------------------------------
+    | Detect actual category change
+    |--------------------------------------------------------------------------
+    |
+    | Example:
+    |
+    | existing category = Keyboard (2)
+    | new category      = Monitor (3)
+    |
+    | Existing keyboard condition answers are no longer valid.
+    |--------------------------------------------------------------------------
+    */
+
+    const categoryChanged =
+      updateData.categoryId !== undefined &&
+      updateData.categoryId !== listing.categoryId;
+
+    let updatedListing;
+
+    if (categoryChanged) {
+      updatedListing = await updateListingAndClearConditionAnswers(
+        listingId,
+        updateData,
+      );
+    } else {
+      updatedListing = await updateListing(listingId, updateData);
+    }
 
     return res.status(200).json({
       success: true,

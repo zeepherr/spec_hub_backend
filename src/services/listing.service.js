@@ -78,12 +78,49 @@ export const findListingById = async (listingId) => {
   });
 };
 
-export const updateListing = async (listingId, data) => {
+export const updateListing = (listingId, data) => {
   return prisma.listing.update({
     where: {
       id: listingId,
     },
+
     data,
+
+    include: {
+      category: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  });
+};
+
+export const updateListingAndClearConditionAnswers = (listingId, data) => {
+  return prisma.$transaction(async (tx) => {
+    await tx.sellerConditionAnswer.deleteMany({
+      where: {
+        listingId,
+      },
+    });
+
+    return tx.listing.update({
+      where: {
+        id: listingId,
+      },
+
+      data,
+
+      include: {
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
   });
 };
 
