@@ -1,35 +1,31 @@
 import { z } from "zod";
 
 export const createListingSchema = z.object({
-  body: z.object({
-    categoryId: z.coerce.number().int().positive(),
+  categoryId: z.coerce.number().int().positive(),
 
-    title: z
-      .string()
-      .trim()
-      .min(5, "Title must be at least 5 characters")
-      .max(150, "Title must not exceed 150 characters"),
+  title: z
+    .string()
+    .trim()
+    .min(5, "Title must be at least 5 characters")
+    .max(150, "Title must not exceed 150 characters"),
 
-    description: z
-      .string()
-      .trim()
-      .min(10, "Description must be at least 10 characters")
-      .max(3000, "Description must not exceed 3000 characters"),
+  description: z
+    .string()
+    .trim()
+    .min(10, "Description must be at least 10 characters")
+    .max(3000, "Description must not exceed 3000 characters"),
 
-    brand: z.string().trim().min(1, "Brand is required").max(100),
+  brand: z.string().trim().min(1, "Brand is required").max(100),
 
-    model: z.string().trim().min(1, "Model is required").max(150),
+  model: z.string().trim().min(1, "Model is required").max(150),
 
-    price: z.coerce.number().positive("Price must be greater than 0"),
+  price: z.coerce.number().positive("Price must be greater than 0"),
 
-    location: z.string().trim().min(2, "Location is required").max(150),
-  }),
+  location: z.string().trim().min(2, "Location is required").max(150),
 });
 
 export const listingIdSchema = z.object({
-  params: z.object({
-    listingId: z.uuid(),
-  }),
+  listingId: z.uuid(),
 });
 
 export const updateListingSchema = z.object({
@@ -57,36 +53,3 @@ export const updateListingSchema = z.object({
       message: "At least one field must be provided",
     }),
 });
-
-export const publishListingById = (listingId) => {
-  return prisma.listing.update({
-    where: {
-      id: listingId,
-    },
-
-    data: {
-      status: "ACTIVE",
-    },
-
-    include: {
-      category: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-
-      images: {
-        orderBy: {
-          sortOrder: "asc",
-        },
-      },
-
-      conditionAnswers: {
-        include: {
-          question: true,
-        },
-      },
-    },
-  });
-};

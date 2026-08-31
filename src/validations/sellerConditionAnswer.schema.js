@@ -7,35 +7,27 @@ const answerValueSchema = z.union([
 ]);
 
 export const listingConditionParamsSchema = z.object({
-  params: z.object({
-    listingId: z.uuid(),
-  }),
+  listingId: z.uuid(),
 });
 
 export const saveConditionAnswersSchema = z.object({
-  params: z.object({
-    listingId: z.uuid(),
-  }),
+  answers: z
+    .array(
+      z.object({
+        questionId: z.coerce.number().int().positive(),
 
-  body: z.object({
-    answers: z
-      .array(
-        z.object({
-          questionId: z.coerce.number().int().positive(),
-
-          answerValue: answerValueSchema,
-        }),
-      )
-      .min(1, "At least one answer must be provided")
-      .superRefine((answers, ctx) => {
-        const ids = answers.map((answer) => answer.questionId);
-
-        if (new Set(ids).size !== ids.length) {
-          ctx.addIssue({
-            code: "custom",
-            message: "The same question cannot appear more than once",
-          });
-        }
+        answerValue: answerValueSchema,
       }),
-  }),
+    )
+    .min(1, "At least one answer must be provided")
+    .superRefine((answers, ctx) => {
+      const ids = answers.map((answer) => answer.questionId);
+
+      if (new Set(ids).size !== ids.length) {
+        ctx.addIssue({
+          code: "custom",
+          message: "The same question cannot appear more than once",
+        });
+      }
+    }),
 });

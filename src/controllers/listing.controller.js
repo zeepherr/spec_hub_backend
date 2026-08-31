@@ -1,9 +1,6 @@
-import { findCategoryBy } from "../services/category.service.js";
-import {
-  findListingForConditionAnalysis,
-  publishListingById,
-} from "../services/listing.service.js";
+import createHttpError from "http-errors";
 
+import { findCategoryBy } from "../services/category.service.js";
 import {
   createListing,
   findListingById,
@@ -11,8 +8,7 @@ import {
   updateListing,
   updateListingAndClearConditionAnswers,
 } from "../services/listing.service.js";
-
-import { findRequiredQuestionsByCategory } from "../services/sellerConditionAnswer.service.js";
+import { toListingResponse } from "../utils/listing.response.js";
 import {
   createListingSchema,
   listingIdSchema,
@@ -20,156 +16,60 @@ import {
 } from "../validations/listing.schema.js";
 
 export const createDraftListing = async (req, res, next) => {
-  try {
-    const validation = createListingSchema.safeParse({
-      body: req.body,
-    });
+  const data = createListingSchema.parse(req.body);
 
-    if (!validation.success) {
-      return res.status(400).json({
-        success: false,
-        code: "VALIDATION_ERROR",
-        message: "Invalid listing data",
-        errors: validation.error.flatten(),
-      });
-    }
+  const category = await findCategoryBy("id", data.categoryId);
 
-    const { categoryId, title, description, brand, model, price, location } =
-      validation.data.body;
-
-    const category = await findCategoryBy("id", categoryId);
-
-    if (!category) {
-      return res.status(404).json({
-        success: false,
-        code: "CATEGORY_NOT_FOUND",
-        message: "Category not found",
-      });
-    }
-
-    if (!category.isActive) {
-      return res.status(400).json({
-        success: false,
-        code: "CATEGORY_INACTIVE",
-        message: "This category is currently unavailable",
-      });
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Create listing
-    |--------------------------------------------------------------------------
-    |
-    | sellerId comes from authenticated user.
-    | status is controlled by backend.
-    |
-    | estimatedCondition and estimatedScore are NOT provided here.
-    | Prisma will leave them null until AI condition analysis later.
-    |--------------------------------------------------------------------------
-    */
-
-    const listing = await createListing({
-      sellerId: req.user.id,
-      categoryId,
-      title,
-      description,
-      brand,
-      model,
-      price,
-      location,
-      status: "DRAFT",
-    });
-
-    return res.status(201).json({
-      success: true,
-      message: "Draft listing created successfully",
-      data: listing,
-    });
-  } catch (error) {
-    next(error);
+  if (!category) {
+    return next(createHttpError(404, "Category not found."));
   }
-};
 
-/*
-|--------------------------------------------------------------------------
-| GET MY LISTINGS
-|--------------------------------------------------------------------------
-*/
+  if (!category.isActive) {
+    return next(
+      createHttpError(400, "This category is currently unavailable."),
+    );
+  }
+
+  const listing = await createListing({
+    ...data,
+    sellerId: req.user.id,
+    status: "DRAFT",
+  });
+
+  return res.status(201).json({
+    success: true,
+    message: "Draft listing created successfully",
+    data: toListingResponse(listing),
+  });
+};
 
 export const getMyListings = async (req, res, next) => {
-  try {
-    const listings = await findListingsBySeller(req.user.id);
+  const listings = await findListingsBySeller(req.user.id);
 
-    return res.status(200).json({
-      success: true,
-      data: listings,
-    });
-  } catch (error) {
-    next(error);
-  }
+  return res.status(200).json({
+    success: true,
+    data: listings.map(toListingResponse),
+  });
 };
-
-/*
-|--------------------------------------------------------------------------
-| GET MY LISTING BY ID
-|--------------------------------------------------------------------------
-*/
 
 export const getMyListingById = async (req, res, next) => {
-  try {
-    const validation = listingIdSchema.safeParse({
-      params: req.params,
-    });
+  const { listingId } = listingIdSchema.parse(req.params);
 
-    if (!validation.success) {
-      return res.status(400).json({
-        success: false,
-        code: "VALIDATION_ERROR",
-        message: "Invalid listing id",
-        errors: validation.error.flatten(),
-      });
-    }
+  const listing = await findListingById(listingId);
 
-    const { listingId } = validation.data.params;
-
-    const listing = await findListingById(listingId);
-
-    if (!listing) {
-      return res.status(404).json({
-        success: false,
-        code: "LISTING_NOT_FOUND",
-        message: "Listing not found",
-      });
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Ownership
-    |--------------------------------------------------------------------------
-    */
-
-    if (listing.sellerId !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        code: "FORBIDDEN",
-        message: "You do not have access to this listing",
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      data: listing,
-    });
-  } catch (error) {
-    next(error);
+  if (!listing) {
+    return next(createHttpError(404, "Listing not found."));
   }
-};
 
-/*
-|--------------------------------------------------------------------------
-| UPDATE DRAFT LISTING
-|--------------------------------------------------------------------------
-*/
+  if (listing.sellerId !== req.user.id) {
+    return next(createHttpError(403, "You cannot access this listing."));
+  }
+
+  return res.status(200).json({
+    success: true,
+    data: toListingResponse(listing),
+  });
+};
 
 export const updateDraftListing = async (req, res, next) => {
   try {
@@ -191,12 +91,6 @@ export const updateDraftListing = async (req, res, next) => {
 
     const updateData = validation.data.body;
 
-    /*
-    |--------------------------------------------------------------------------
-    | Find listing
-    |--------------------------------------------------------------------------
-    */
-
     const listing = await findListingById(listingId);
 
     if (!listing) {
@@ -207,12 +101,6 @@ export const updateDraftListing = async (req, res, next) => {
       });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Ownership
-    |--------------------------------------------------------------------------
-    */
-
     if (listing.sellerId !== req.user.id) {
       return res.status(403).json({
         success: false,
@@ -221,12 +109,6 @@ export const updateDraftListing = async (req, res, next) => {
       });
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Only DRAFT listings are editable
-    |--------------------------------------------------------------------------
-    */
-
     if (listing.status !== "DRAFT") {
       return res.status(400).json({
         success: false,
@@ -234,12 +116,6 @@ export const updateDraftListing = async (req, res, next) => {
         message: "Only draft listings can be edited",
       });
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Check category when categoryId is being updated
-    |--------------------------------------------------------------------------
-    */
 
     if (updateData.categoryId !== undefined) {
       const category = await findCategoryBy("id", updateData.categoryId);
@@ -294,163 +170,6 @@ export const updateDraftListing = async (req, res, next) => {
       success: true,
       message: "Draft listing updated successfully",
       data: updatedListing,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const publishListing = async (req, res, next) => {
-  try {
-    /*
-    |--------------------------------------------------------------------------
-    | 1. Validate listing ID
-    |--------------------------------------------------------------------------
-    */
-
-    const validation = listingIdSchema.safeParse({
-      params: req.params,
-    });
-
-    if (!validation.success) {
-      return res.status(400).json({
-        success: false,
-        code: "VALIDATION_ERROR",
-        message: "Invalid listing id",
-        errors: validation.error.flatten(),
-      });
-    }
-
-    const { listingId } = validation.data.params;
-
-    /*
-    |--------------------------------------------------------------------------
-    | 2. Load listing
-    |--------------------------------------------------------------------------
-    */
-
-    const listing = await findListingForConditionAnalysis(listingId);
-
-    if (!listing) {
-      return res.status(404).json({
-        success: false,
-        code: "LISTING_NOT_FOUND",
-        message: "Listing not found",
-      });
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | 3. Ownership
-    |--------------------------------------------------------------------------
-    */
-
-    if (listing.sellerId !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        code: "FORBIDDEN",
-        message: "You cannot publish this listing",
-      });
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | 4. Must be DRAFT
-    |--------------------------------------------------------------------------
-    */
-
-    if (listing.status !== "DRAFT") {
-      return res.status(400).json({
-        success: false,
-        code: "LISTING_NOT_PUBLISHABLE",
-        message: "Only draft listings can be published",
-      });
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | 5. Category must still be active
-    |--------------------------------------------------------------------------
-    */
-
-    if (!listing.category.isActive) {
-      return res.status(400).json({
-        success: false,
-        code: "CATEGORY_INACTIVE",
-        message: "This listing category is currently unavailable",
-      });
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | 6. Check required condition questions
-    |--------------------------------------------------------------------------
-    */
-
-    const requiredQuestions = await findRequiredQuestionsByCategory(
-      listing.categoryId,
-    );
-
-    const answeredQuestionIds = new Set(
-      listing.conditionAnswers.map((answer) => answer.questionId),
-    );
-
-    const missingRequiredQuestions = requiredQuestions.filter(
-      (question) => !answeredQuestionIds.has(question.id),
-    );
-
-    if (missingRequiredQuestions.length > 0) {
-      return res.status(400).json({
-        success: false,
-        code: "CONDITION_ANSWERS_INCOMPLETE",
-        message:
-          "Please answer all required condition questions before publishing",
-      });
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | 7. Require image
-    |--------------------------------------------------------------------------
-    */
-
-    if (listing.images.length === 0) {
-      return res.status(400).json({
-        success: false,
-        code: "LISTING_IMAGES_REQUIRED",
-        message: "Upload at least one image before publishing",
-      });
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | 8. Require AI condition analysis
-    |--------------------------------------------------------------------------
-    */
-
-    if (
-      listing.estimatedCondition === null ||
-      listing.estimatedScore === null
-    ) {
-      return res.status(400).json({
-        success: false,
-        code: "CONDITION_ANALYSIS_REQUIRED",
-        message: "Analyze the product condition before publishing",
-      });
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | 9. Publish
-    |--------------------------------------------------------------------------
-    */
-
-    const publishedListing = await publishListingById(listingId);
-
-    return res.status(200).json({
-      success: true,
-      message: "Listing published successfully",
-      data: publishedListing,
     });
   } catch (error) {
     next(error);
