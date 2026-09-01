@@ -9,6 +9,8 @@ import aiRoute from "./routes/ai.route.js";
 import authRoute from "./routes/auth.route.js";
 import categoryRoute from "./routes/category.route.js";
 import listingRoute from "./routes/listing.route.js";
+import profileRouter from "./routes/user.route.js";
+
 const app = express();
 
 app.use(cors(corsOptions));
@@ -20,6 +22,7 @@ app.use("/api/auth", authRoute);
 app.use("/api/categories", categoryRoute);
 app.use("/api/ai", aiRoute);
 app.use("/api/listings", listingRoute);
+app.use("/api/user", profileRouter);
 app.use(notFound);
 app.use(errorHandler);
 export default app;

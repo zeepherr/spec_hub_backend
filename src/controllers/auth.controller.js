@@ -34,6 +34,7 @@ import {
   resendVerificationSchema,
   verifyEmailSchema,
 } from "../validations/auth.schema.js";
+import { getR2PublicUrl } from "../services/r2.storage.service.js";
 
 export const register = async (req, res, next) => {
   const data = registerSchema.parse(req.body);
@@ -87,6 +88,10 @@ export const login = async (req, res, next) => {
   const refreshtoken = await createRefreshToken();
   const refreshTokenHash = await hashRefreshToken(refreshtoken);
   await createAuthSession(haveUser, refreshTokenHash);
+  let profileImageUrl = null
+  if(haveUser.profileImageKey){
+    profileImageUrl =getR2PublicUrl(haveUser.profileImageKey)
+  }
   res.cookie("refreshToken", refreshtoken, refreshCookieOptions);
   res.status(200).json({
     message: "Login Successful",
@@ -95,6 +100,7 @@ export const login = async (req, res, next) => {
       id: haveUser.id,
       email: haveUser.email,
       role: haveUser.role,
+      profileImageUrl,
     },
   });
 };
@@ -145,9 +151,13 @@ export const logout = async (req, res, next) => {
 };
 export const getMe = async (req, res, next) => {
   const user = await getUserBy("email", req.user.email);
+  let profileImageUrl = null
+  if(user.profileImageKey){
+    profileImageUrl =getR2PublicUrl(haveUser.profileImageKey)
+  }
   res.status(200).json({
     message: "Get user details",
-    user: user,
+    user: {...user,profileImageUrl},
   });
 };
 
