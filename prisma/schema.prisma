@@ -115,6 +115,7 @@ model User {
   lastName             String
   phone                String?
   address              String?
+  googleSub            String?                   @unique
   profileImageKey      String?
   isVerified           Boolean                   @default(false)
   isActive             Boolean                   @default(true)

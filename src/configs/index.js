@@ -13,6 +13,8 @@ export const config = {
   r2_secret_access_key: process.env.R2_SECRET_ACCESS_KEY || "",
   r2_bucket_name: process.env.R2_BUCKET_NAME || "",
   r2_public_url: process.env.R2_PUBLIC_URL || "",
+  google_client_id: process.env.GOOGLE_CLIENT_ID || "",
+  google_client_secret: process.env.GOOGLE_CLIENT_SECRET,
 
   client_url: process.env.CLIENT_URL || "http://localhost:5173",
   gemini_api: process.env.GEMINI_API_KEY || "",

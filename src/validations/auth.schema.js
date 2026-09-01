@@ -36,3 +36,7 @@ export const verifyEmailSchema = z.object({
 export const resendVerificationSchema = z.object({
   email: z.string().trim().toLowerCase().email("Invalid email address"),
 });
+
+export const googleLoginSchema = z.object({
+  credential: z.string().trim().min(1, "Google credential is required"),
+});

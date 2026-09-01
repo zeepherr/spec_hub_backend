@@ -14,6 +14,26 @@ export const getUserBy = async (column, value) => {
     },
   });
 };
+
+export const findUserByGoogleSub = async (googleSub) => {
+  return await prisma.user.findUnique({
+    where: {
+      googleSub,
+    },
+  });
+};
+
+export const setUserGoogleSub = async (userId, googleSub) => {
+  return await prisma.user.update({
+    where: {
+      id: userId,
+    },
+    data: {
+      googleSub,
+    },
+  });
+};
+
 export const savePendingRegistration = async (data) => {
   //using upsert if existing user -> update data , if not --> create new
   return prisma.pendingRegistration.upsert({
