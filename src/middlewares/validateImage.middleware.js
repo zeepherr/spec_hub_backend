@@ -30,6 +30,33 @@ export const validateImage = async (req, res, next) => {
   }
 };
 
+export const validateOptionalImage = async (req,res,next,) => {
+  try {
+    // ไม่มีรูปก็ให้ผ่าน
+    if (!req.file) {
+      return next();
+    }
+    // ถ้ามีรูปต้องตรวจสอบ
+    const detectedType = await fileTypeFromBuffer(
+      req.file.buffer,
+    );
+
+    if (
+      !detectedType ||
+      !allowedImageTypes.has(detectedType.mime)
+    ) {
+      return next(unsupportedImageError());
+    }
+    req.file.detectedType = detectedType;
+
+    return next();
+  } catch (error) {
+    return next(error);
+  }
+};
+
+
+
 export const validateImages = async (req, res, next) => {
   try {
     if (!Array.isArray(req.files) || req.files.length === 0) {

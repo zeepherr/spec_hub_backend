@@ -114,7 +114,8 @@ model User {
   firstName            String
   lastName             String
   phone                String?
-  profileImageUrl      String?
+  address              String?
+  profileImageKey      String?
   isVerified           Boolean                   @default(false)
   isActive             Boolean                   @default(true)
   createdAt            DateTime                  @default(now())
