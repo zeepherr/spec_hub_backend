@@ -3,6 +3,8 @@ import createHttpError from "http-errors";
 import { findCategoryBy } from "../services/category.service.js";
 import {
   createListing,
+  findActiveListingsByCategory,
+  findAllActiveListings,
   findListingById,
   findListingsBySeller,
   updateListing,
@@ -11,6 +13,7 @@ import {
 import { toListingResponse } from "../utils/listing.response.js";
 import {
   createListingSchema,
+  listingCategoryIdSchema,
   listingIdSchema,
   updateListingSchema,
 } from "../validations/listing.schema.js";
@@ -174,4 +177,32 @@ export const updateDraftListing = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
+export const getAllActiveListings = async (req, res, next) => {
+  const listings = await findAllActiveListings();
+
+  return res.status(200).json({
+    success: true,
+    message: "Listings fetched successfully",
+    data: listings.map(toListingResponse),
+  });
+};
+
+export const getListingsByCategory = async (req, res, next) => {
+  const { categoryId } = listingCategoryIdSchema.parse(req.params);
+
+  const category = await findCategoryBy("id", categoryId);
+
+  if (!category || !category.isActive) {
+    return next(createHttpError(404, "Category not found."));
+  }
+
+  const listings = await findActiveListingsByCategory(categoryId);
+
+  return res.status(200).json({
+    success: true,
+    message: "Category listings fetched successfully",
+    data: listings.map(toListingResponse),
+  });
 };

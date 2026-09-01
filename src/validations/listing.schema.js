@@ -53,3 +53,7 @@ export const updateListingSchema = z.object({
       message: "At least one field must be provided",
     }),
 });
+
+export const listingCategoryIdSchema = z.object({
+  categoryId: z.coerce.number().int().positive(),
+});
