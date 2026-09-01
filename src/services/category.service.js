@@ -25,6 +25,25 @@ export const findAllcategories = async (where = {}) => {
           conditionQuestions: true,
         },
       },
+      conditionQuestions: {
+        where: {
+          isActive: true,
+        },
+
+        select: {
+          id: true,
+          label: true,
+          answerType: true,
+          options: true,
+          isRequired: true,
+          isActive: true,
+          sortOrder: true,
+        },
+
+        orderBy: {
+          sortOrder: "asc",
+        },
+      },
     },
     orderBy: {
       createdAt: "desc",
