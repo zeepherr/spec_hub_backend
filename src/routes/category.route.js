@@ -42,10 +42,10 @@ import { allowRoles } from "../middlewares/authorize.middleware.js";
 
 const app = express.Router();
 
+app.get("/", getAllCategoriesForUser);
 app.use(authenticate);
 
 //category
-app.get("/", getAllCategoriesForUser);
 
 app.get("/admin", allowRoles("ADMIN"), getAllCategoriesAdmin);
 
