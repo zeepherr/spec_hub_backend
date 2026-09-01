@@ -239,3 +239,58 @@ export const publishListingById = (listingId) => {
     },
   });
 };
+
+export const findAllActiveListings = async () => {
+  return prisma.listing.findMany({
+    where: {
+      status: "ACTIVE",
+      category: {
+        isActive: true,
+      },
+    },
+    include: {
+      category: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      images: {
+        orderBy: {
+          sortOrder: "asc",
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+};
+
+export const findActiveListingsByCategory = async (categoryId) => {
+  return prisma.listing.findMany({
+    where: {
+      categoryId,
+      status: "ACTIVE",
+      category: {
+        isActive: true,
+      },
+    },
+    include: {
+      category: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      images: {
+        orderBy: {
+          sortOrder: "asc",
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+};

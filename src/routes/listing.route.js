@@ -3,6 +3,8 @@ import express from "express";
 import { identifyProductImage } from "../controllers/ai.controller.js";
 import {
   createDraftListing,
+  getAllActiveListings,
+  getListingsByCategory,
   getMyListingById,
   getMyListings,
   updateDraftListing,
@@ -29,8 +31,11 @@ import {
 
 const app = express.Router();
 
-app.use(authenticate);
+app.get("/", getAllActiveListings);
 
+app.get("/category/:categoryId", getListingsByCategory);
+
+app.use(authenticate);
 app.post(
   "/identify-product",
   uploadImage.single("image"),
