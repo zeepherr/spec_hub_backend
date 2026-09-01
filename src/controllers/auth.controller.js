@@ -13,6 +13,7 @@ import {
   savePendingRegistration,
   updatePendingOtp,
 } from "../services/auth.service.js";
+import { getR2PublicUrl } from "../services/r2.storage.service.js";
 import { refreshCookieOptions } from "../utils/cookie.util.js";
 import {
   hashVailMailDomain,
@@ -34,7 +35,6 @@ import {
   resendVerificationSchema,
   verifyEmailSchema,
 } from "../validations/auth.schema.js";
-import { getR2PublicUrl } from "../services/r2.storage.service.js";
 
 export const register = async (req, res, next) => {
   const data = registerSchema.parse(req.body);
@@ -88,9 +88,9 @@ export const login = async (req, res, next) => {
   const refreshtoken = await createRefreshToken();
   const refreshTokenHash = await hashRefreshToken(refreshtoken);
   await createAuthSession(haveUser, refreshTokenHash);
-  let profileImageUrl = null
-  if(haveUser.profileImageKey){
-    profileImageUrl =getR2PublicUrl(haveUser.profileImageKey)
+  let profileImageUrl = null;
+  if (haveUser.profileImageKey) {
+    profileImageUrl = getR2PublicUrl(haveUser.profileImageKey);
   }
   res.cookie("refreshToken", refreshtoken, refreshCookieOptions);
   res.status(200).json({
@@ -98,9 +98,12 @@ export const login = async (req, res, next) => {
     accessToken: token,
     user: {
       id: haveUser.id,
+      firstName: haveUser.firstName,
+      lastName: haveUser.lastName,
       email: haveUser.email,
       role: haveUser.role,
       profileImageUrl,
+      phone: haveUser.phone,
     },
   });
 };
@@ -151,13 +154,13 @@ export const logout = async (req, res, next) => {
 };
 export const getMe = async (req, res, next) => {
   const user = await getUserBy("email", req.user.email);
-  let profileImageUrl = null
-  if(user.profileImageKey){
-    profileImageUrl =getR2PublicUrl(haveUser.profileImageKey)
+  let profileImageUrl = null;
+  if (user.profileImageKey) {
+    profileImageUrl = getR2PublicUrl(haveUser.profileImageKey);
   }
   res.status(200).json({
     message: "Get user details",
-    user: {...user,profileImageUrl},
+    user: { ...user, profileImageUrl },
   });
 };
 

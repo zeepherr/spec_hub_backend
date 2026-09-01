@@ -7,6 +7,7 @@ import { notFound } from "./middlewares/notFound.middleware.js";
 import { requestMdw } from "./middlewares/request.middlewares.js";
 import aiRoute from "./routes/ai.route.js";
 import authRoute from "./routes/auth.route.js";
+import cartItemRoute from "./routes/cartItem.route.js";
 import categoryRoute from "./routes/category.route.js";
 import listingRoute from "./routes/listing.route.js";
 import profileRouter from "./routes/user.route.js";
@@ -23,6 +24,52 @@ app.use("/api/categories", categoryRoute);
 app.use("/api/ai", aiRoute);
 app.use("/api/listings", listingRoute);
 app.use("/api/user", profileRouter);
+app.use("/api/cart", cartItemRoute);
 app.use(notFound);
 app.use(errorHandler);
 export default app;
+
+// ACTIVE Listing
+//       │
+//       ├── Buy Now
+//       │
+//       └── Cart → Checkout
+//                 │
+//                 ↓
+//        Backend validates listing
+//                 ↓
+//        ATOMIC RESERVATION
+//        Listing ACTIVE → RESERVED
+//                 +
+//           Create Order
+//                 ↓
+//         AWAITING_PAYMENT
+//                 ↓
+//             Payment
+//                 ↓
+//               PAID
+//                 ↓
+//        Seller ships to Admin
+//                 ↓
+//         SELLER_SHIPPING
+//                 ↓
+//         Admin receives item
+//                 ↓
+//       INSPECTION_PENDING
+//                 ↓
+//            INSPECTING
+//            /        \
+//         PASS        FAIL
+//          ↓            ↓
+//       VERIFIED     REJECTED
+//          ↓            ↓
+//  Admin ships Buyer   Refund
+//          ↓
+//  SHIPPING_TO_BUYER
+//          ↓
+//  Buyer receives
+//          ↓
+//       COMPLETED
+//          ↓
+//  Payment RELEASED
+//  Listing → SOLD

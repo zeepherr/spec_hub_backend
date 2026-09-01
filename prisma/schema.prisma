@@ -133,6 +133,7 @@ model User {
   reviewsReceived      Review[]                  @relation("ReviewReceiver")
   openedSupportCases   SupportCase[]             @relation("SupportCaseOpenedBy")
   assignedCases        SupportCase[]             @relation("SupportCaseAdmin")
+  cartItems            CartItem[]
 }
 
 model AuthSession {
@@ -196,6 +197,7 @@ model Listing {
   conditionAnswers   SellerConditionAnswer[]
   conversations      Conversation[]
   orders             Order[]
+  cartItems          CartItem[]
 
   @@index([sellerId])
   @@index([categoryId])
@@ -304,6 +306,7 @@ model Order {
   listingId     String
   buyerId       String
   sellerId      String
+  agreedPrice   Decimal        @db.Decimal(12, 2)
   status        OrderStatus    @default(PENDING)
   lockedAt      DateTime?
   completedAt   DateTime?
@@ -326,6 +329,20 @@ model Order {
   @@index([sellerId])
   @@index([status])
   @@index([createdAt])
+}
+
+model CartItem {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  listingId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, listingId])
+  @@index([userId])
+  @@index([listingId])
 }
 
 model Payment {

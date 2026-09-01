@@ -1,11 +1,5 @@
 import { prisma } from "../lib/prisma.js";
 
-/*
-|--------------------------------------------------------------------------
-| FIND ACTIVE QUESTIONS BY CATEGORY
-|--------------------------------------------------------------------------
-*/
-
 export const findActiveQuestionsByCategory = (categoryId) => {
   return prisma.conditionQuestion.findMany({
     where: {
@@ -24,12 +18,6 @@ export const findActiveQuestionsByCategory = (categoryId) => {
   });
 };
 
-/*
-|--------------------------------------------------------------------------
-| FIND SPECIFIC ACTIVE QUESTIONS
-|--------------------------------------------------------------------------
-*/
-
 export const findQuestionsByIds = (categoryId, questionIds) => {
   return prisma.conditionQuestion.findMany({
     where: {
@@ -44,12 +32,6 @@ export const findQuestionsByIds = (categoryId, questionIds) => {
   });
 };
 
-/*
-|--------------------------------------------------------------------------
-| FIND LISTING ANSWERS
-|--------------------------------------------------------------------------
-*/
-
 export const findAnswersByListing = (listingId) => {
   return prisma.sellerConditionAnswer.findMany({
     where: {
@@ -62,12 +44,6 @@ export const findAnswersByListing = (listingId) => {
     },
   });
 };
-
-/*
-|--------------------------------------------------------------------------
-| CREATE OR UPDATE ANSWERS
-|--------------------------------------------------------------------------
-*/
 
 export const upsertConditionAnswers = (listingId, answers) => {
   return prisma.$transaction(
