@@ -53,10 +53,18 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum CheckoutStatus {
+  AWAITING_PAYMENT
+  PAID
+  CANCELLED
+  EXPIRED
+}
+
 enum PaymentStatus {
   PENDING
   PAID
   FAILED
+  EXPIRED
   REFUNDED
   RELEASED
 }
@@ -135,6 +143,7 @@ model User {
   openedSupportCases   SupportCase[]             @relation("SupportCaseOpenedBy")
   assignedCases        SupportCase[]             @relation("SupportCaseAdmin")
   cartItems            CartItem[]
+  checkouts            Checkout[]
 }
 
 model AuthSession {
@@ -304,6 +313,7 @@ model Message {
 model Order {
   id            Int            @id @default(autoincrement())
   orderNumber   String         @unique
+  checkoutId    Int
   listingId     String
   buyerId       String
   sellerId      String
@@ -315,16 +325,17 @@ model Order {
   rejectedAt    DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
+  checkout      Checkout       @relation(fields: [checkoutId], references: [id])
   listing       Listing        @relation(fields: [listingId], references: [id])
   buyer         User           @relation("BuyerOrders", fields: [buyerId], references: [id])
   seller        User           @relation("SellerOrders", fields: [sellerId], references: [id])
-  payment       Payment?
   shipments     Shipment[]
   inspection    Inspection?
   conversations Conversation[]
   reviews       Review[]
   supportCases  SupportCase[]
 
+  @@index([checkoutId])
   @@index([listingId])
   @@index([buyerId])
   @@index([sellerId])
@@ -348,7 +359,7 @@ model CartItem {
 
 model Payment {
   id          Int           @id @default(autoincrement())
-  orderId     Int           @unique
+  checkoutId  Int           @unique
   buyerId     String
   amount      Decimal       @db.Decimal(12, 2)
   status      PaymentStatus @default(PENDING)
@@ -357,8 +368,22 @@ model Payment {
   refundedAt  DateTime?
   releasedAt  DateTime?
   createdAt   DateTime      @default(now())
-  order       Order         @relation(fields: [orderId], references: [id])
+  checkout    Checkout      @relation(fields: [checkoutId], references: [id])
   buyer       User          @relation(fields: [buyerId], references: [id])
+
+  @@index([buyerId])
+  @@index([status])
+}
+
+model Checkout {
+  id        Int            @id @default(autoincrement())
+  buyerId   String
+  status    CheckoutStatus @default(AWAITING_PAYMENT)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  buyer     User           @relation(fields: [buyerId], references: [id])
+  orders    Order[]
+  payment   Payment?
 
   @@index([buyerId])
   @@index([status])
