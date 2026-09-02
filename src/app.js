@@ -10,6 +10,8 @@ import authRoute from "./routes/auth.route.js";
 import cartItemRoute from "./routes/cartItem.route.js";
 import categoryRoute from "./routes/category.route.js";
 import listingRoute from "./routes/listing.route.js";
+import orderRoute from "./routes/order.route.js";
+import paymentRoute from "./routes/payment.route.js";
 import profileRouter from "./routes/user.route.js";
 
 const app = express();
@@ -25,6 +27,8 @@ app.use("/api/ai", aiRoute);
 app.use("/api/listings", listingRoute);
 app.use("/api/user", profileRouter);
 app.use("/api/cart", cartItemRoute);
+app.use("/api/orders", orderRoute);
+app.use("/api/payments", paymentRoute);
 app.use(notFound);
 app.use(errorHandler);
 export default app;
