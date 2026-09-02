@@ -8,7 +8,12 @@ import { config } from "../configs/index.js";
 import { r2Client } from "../configs/r2.js";
 
 export const getR2PublicUrl = (key) => {
-  return `${config.r2_public_url}/${key}`;
+  if (!key) return null;
+
+  const baseUrl = config.r2_public_url.replace(/\/+$/, "");
+  const objectKey = key.replace(/^\/+/, "");
+
+  return `${baseUrl}/${objectKey}`;
 };
 
 export const uploadToR2 = async ({ buffer, key, contentType }) => {
