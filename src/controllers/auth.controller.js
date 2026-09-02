@@ -129,7 +129,10 @@ export const refresh = async (req, res, next) => {
     session.user;
   return res.status(200).json({
     accessToken,
-    user: userData,
+    user: {
+      ...userData,
+      profileImageUrl: getR2PublicUrl(userData.profileImageKey),
+    },
   });
 };
 
@@ -153,7 +156,7 @@ export const getMe = async (req, res, next) => {
   const user = await getUserBy("email", req.user.email);
   let profileImageUrl = null
   if(user.profileImageKey){
-    profileImageUrl =getR2PublicUrl(haveUser.profileImageKey)
+    profileImageUrl =getR2PublicUrl(user.profileImageKey)
   }
   res.status(200).json({
     message: "Get user details",

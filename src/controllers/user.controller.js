@@ -1,5 +1,4 @@
 import crypto from "node:crypto";
-import path from "node:path";
 import createHttpError from "http-errors";
 import {uploadToR2,deleteFromR2, getR2PublicUrl,} from "../services/r2.storage.service.js";
 
@@ -15,10 +14,10 @@ export const getMyProfile = async (req, res, next) => {
     if (!user) {
       return next(createHttpError(404, "ไม่พบข้อมูลผู้ใช้"));
     }
-     let profileImageUrl = null
-      if(user.profileImageKey){
-        profileImageUrl =getR2PublicUrl(haveUser.profileImageKey)
-      }
+    let profileImageUrl = null;
+    if (user.profileImageKey) {
+      profileImageUrl = getR2PublicUrl(user.profileImageKey);
+    }
 
     return res.status(200).json({
       success: true,
@@ -61,34 +60,56 @@ export const updateMyProfile = async (req, res, next) => {
     }
 
     if (req.file) {
-      const extension =
-        path.extname(req.file.originalname).toLowerCase() ||
-        ".jpg";
+      // const extension =
+      //   path.extname(req.file.originalname).toLowerCase() ||
+      //   ".jpg";
 
-      newImageKey =
+      const key =
         `users/${userId}/profile/` +
-        `${crypto.randomUUID()}${extension}`;
+        `${crypto.randomUUID()}${req.file.detectedType.ext}`;
 
       const uploadedImage = await uploadToR2({
         buffer: req.file.buffer,
-        key: newImageKey,
-        contentType: req.file.mimetype,
+        key,
+        contentType: req.file.detectedType.mime,
       });
-
-      updateData.profileImageKey = uploadedImage.key;
-      updateData.profileImageUrl = uploadedImage.url;
+      newImageKey = uploadedImage.key;
     }
+    const finalData = {
+      ...updateData,
+      ...(newImageKey && { profileImageKey: newImageKey }),
+    };
 
-    if (Object.keys(updateData).length === 0) {
+    if (Object.keys(finalData).length === 0) {
       return next(
         createHttpError(400, "ไม่มีข้อมูลสำหรับแก้ไข"),
       );
     }
 
-    const updatedUser = await updateProfileByUserId(userId,updateData,);
+    // บันทึกฐานข้อมูลหลังจากอัปโหลดรูปใหม่สำเร็จแล้ว
+    let updatedUser;
 
+    try {
+      updatedUser = await updateProfileByUserId(userId, finalData);
+    } catch (updateError) {
+      // ถ้าบันทึกฐานข้อมูลไม่สำเร็จ ให้ลบรูปใหม่เพื่อไม่ให้เป็นไฟล์ขยะใน R2
+      if (newImageKey) {
+        try {
+          await deleteFromR2(newImageKey);
+        } catch (cleanupError) {
+          console.error(
+            "Cannot clean up new profile image:",
+            cleanupError,
+          );
+        }
+      }
+
+      return next(updateError);
+    }
+
+    // เมื่อฐานข้อมูลอัปเดตสำเร็จแล้ว จึงลบรูปโปรไฟล์เก่า
     if (
-      req.file &&
+      newImageKey &&
       currentUser.profileImageKey &&
       currentUser.profileImageKey !==
         updatedUser.profileImageKey
@@ -106,21 +127,14 @@ export const updateMyProfile = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "แก้ไขข้อมูลส่วนตัวสำเร็จ",
-      user: updatedUser,
+      user: {
+        ...updatedUser,
+        profileImageUrl: updatedUser.profileImageKey
+          ? getR2PublicUrl(updatedUser.profileImageKey)
+          : null,
+      },
     });
   } catch (error) {
-    
-    if (newImageKey) {
-      try {
-        await deleteFromR2(newImageKey);
-      } catch (deleteError) {
-        console.error(
-          "Cannot rollback uploaded image:",
-          deleteError,
-        );
-      }
-    }
-
-    next(error);
+    return next(error);
   }
 };
