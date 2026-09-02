@@ -7,7 +7,6 @@ import {
   getListingsByCategory,
   getMyListingById,
   getMyListings,
-  getPublicListingById,
   updateDraftListing,
 } from "../controllers/listing.controller.js";
 
@@ -33,7 +32,6 @@ import {
 const app = express.Router();
 
 app.get("/", getAllActiveListings);
-app.get("/public/:listingId", getPublicListingById);
 
 app.get("/category/:categoryId", getListingsByCategory);
 
