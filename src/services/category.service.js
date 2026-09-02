@@ -26,10 +26,6 @@ export const findAllcategories = async (where = {}) => {
         },
       },
       conditionQuestions: {
-        where: {
-          isActive: true,
-        },
-
         select: {
           id: true,
           label: true,
@@ -39,7 +35,6 @@ export const findAllcategories = async (where = {}) => {
           isActive: true,
           sortOrder: true,
         },
-
         orderBy: {
           sortOrder: "asc",
         },
@@ -53,7 +48,9 @@ export const findAllcategories = async (where = {}) => {
 
 export const setCategory = async (catId, data) => {
   return await prisma.category.update({
-    where: { id: catId },
+    where: {
+      id: catId,
+    },
     data,
   });
 };
@@ -69,6 +66,31 @@ export const findActiveCategories = () => {
     },
     orderBy: {
       name: "asc",
+    },
+  });
+};
+
+// Counts relations that prevent a category from being deleted.
+export const findCategoryRelationCounts = async (categoryId) => {
+  return await prisma.category.findUnique({
+    where: {
+      id: categoryId,
+    },
+    select: {
+      _count: {
+        select: {
+          listings: true,
+          conditionQuestions: true,
+        },
+      },
+    },
+  });
+};
+
+export const deleteCategoryById = async (categoryId) => {
+  return await prisma.category.delete({
+    where: {
+      id: categoryId,
     },
   });
 };

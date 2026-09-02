@@ -76,7 +76,7 @@ export const getMyListingById = async (req, res, next) => {
   });
 };
 
-export const updateDraftListing = async (req, res, next) => {
+export const updateSellerListing = async (req, res, next) => {
   try {
     const validation = updateListingSchema.safeParse({
       params: req.params,
@@ -99,62 +99,74 @@ export const updateDraftListing = async (req, res, next) => {
     const listing = await findListingById(listingId);
 
     if (!listing) {
-      return res.status(404).json({
-        success: false,
-        code: "LISTING_NOT_FOUND",
-        message: "Listing not found",
-      });
+      return next(createHttpError(404, "Listing not found."));
     }
 
     if (listing.sellerId !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        code: "FORBIDDEN",
-        message: "You cannot edit this listing",
+      return next(createHttpError(403, "You cannot edit this listing."));
+    }
+
+    if (listing.status !== "DRAFT" && listing.status !== "ACTIVE") {
+      return next(
+        createHttpError(409, "This listing can no longer be edited."),
+      );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | ACTIVE LISTING
+    |--------------------------------------------------------------------------
+    |
+    | Once published, only public selling information can be edited.
+    |
+    | Product identity and condition-related data are locked.
+    |--------------------------------------------------------------------------
+    */
+
+    if (listing.status === "ACTIVE") {
+      const allowedFields = ["title", "description", "price", "location"];
+
+      const invalidField = Object.keys(updateData).find(
+        (field) => !allowedFields.includes(field),
+      );
+
+      if (invalidField) {
+        return next(
+          createHttpError(
+            400,
+            "Active listings can only update title, description, price, and location.",
+          ),
+        );
+      }
+
+      const updatedListing = await updateListing(listingId, updateData);
+
+      return res.status(200).json({
+        success: true,
+        message: "Listing updated successfully",
+        data: toListingResponse(updatedListing),
       });
     }
 
-    if (listing.status !== "DRAFT") {
-      return res.status(400).json({
-        success: false,
-        code: "LISTING_NOT_EDITABLE",
-        message: "Only draft listings can be edited",
-      });
-    }
+    /*
+    |--------------------------------------------------------------------------
+    | DRAFT LISTING
+    |--------------------------------------------------------------------------
+    */
 
     if (updateData.categoryId !== undefined) {
       const category = await findCategoryBy("id", updateData.categoryId);
 
       if (!category) {
-        return res.status(404).json({
-          success: false,
-          code: "CATEGORY_NOT_FOUND",
-          message: "Category not found",
-        });
+        return next(createHttpError(404, "Category not found."));
       }
 
       if (!category.isActive) {
-        return res.status(400).json({
-          success: false,
-          code: "CATEGORY_INACTIVE",
-          message: "This category is currently unavailable",
-        });
+        return next(
+          createHttpError(400, "This category is currently unavailable."),
+        );
       }
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Detect actual category change
-    |--------------------------------------------------------------------------
-    |
-    | Example:
-    |
-    | existing category = Keyboard (2)
-    | new category      = Monitor (3)
-    |
-    | Existing keyboard condition answers are no longer valid.
-    |--------------------------------------------------------------------------
-    */
 
     const categoryChanged =
       updateData.categoryId !== undefined &&
@@ -174,11 +186,55 @@ export const updateDraftListing = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "Draft listing updated successfully",
-      data: updatedListing,
+      data: toListingResponse(updatedListing),
     });
   } catch (error) {
-    next(error);
+    return next(error);
   }
+};
+
+export const deleteSellerListing = async (req, res, next) => {
+  const { listingId } = listingIdSchema.parse(req.params);
+
+  const listing = await findListingForDelete(listingId);
+
+  if (!listing) {
+    return next(createHttpError(404, "Listing not found."));
+  }
+
+  if (listing.sellerId !== req.user.id) {
+    return next(createHttpError(403, "You cannot delete this listing."));
+  }
+
+  if (listing.status !== "DRAFT" && listing.status !== "ACTIVE") {
+    return next(
+      createHttpError(409, "Only draft or active listings can be deleted."),
+    );
+  }
+
+  if (listing._count.orders > 0 || listing._count.conversations > 0) {
+    return next(
+      createHttpError(
+        409,
+        "This listing cannot be deleted because it is already in use.",
+      ),
+    );
+  }
+
+  const imageKeys = listing.images.map((image) => image.imageKey);
+
+  await deleteListingById(listingId);
+
+  if (imageKeys.length > 0) {
+    await Promise.allSettled(
+      imageKeys.map((imageKey) => deleteFromR2(imageKey)),
+    );
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: "Listing deleted successfully",
+  });
 };
 
 export const getAllActiveListings = async (req, res, next) => {

@@ -70,3 +70,20 @@ export const updateConditionQuestion = (questionId, data) => {
     data,
   });
 };
+
+// Counts seller answers that still reference the question.
+export const countConditionQuestionAnswers = (questionId) => {
+  return prisma.sellerConditionAnswer.count({
+    where: {
+      questionId,
+    },
+  });
+};
+
+export const deleteConditionQuestionById = (questionId) => {
+  return prisma.conditionQuestion.delete({
+    where: {
+      id: questionId,
+    },
+  });
+};

@@ -93,6 +93,11 @@ export const updateListing = (listingId, data) => {
           name: true,
         },
       },
+      images: {
+        orderBy: {
+          sortOrder: "asc",
+        },
+      },
     },
   });
 };
@@ -117,6 +122,11 @@ export const updateListingAndClearConditionAnswers = (listingId, data) => {
           select: {
             id: true,
             name: true,
+          },
+        },
+        images: {
+          orderBy: {
+            sortOrder: "asc",
           },
         },
       },
@@ -338,6 +348,42 @@ export const findPublicListingById = async (listingId) => {
           // based on your actual User model
         },
       },
+    },
+  });
+};
+
+// Used before hard deleting a seller listing.
+export const findListingForDelete = async (listingId) => {
+  return prisma.listing.findUnique({
+    where: {
+      id: listingId,
+    },
+
+    select: {
+      id: true,
+      sellerId: true,
+      status: true,
+
+      images: {
+        select: {
+          imageKey: true,
+        },
+      },
+
+      _count: {
+        select: {
+          orders: true,
+          conversations: true,
+        },
+      },
+    },
+  });
+};
+
+export const deleteListingById = async (listingId) => {
+  return prisma.listing.delete({
+    where: {
+      id: listingId,
     },
   });
 };
