@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import createHttpError from "http-errors";
+import { verifyGoogleCredential } from "../providers/google.provider.js";
 import {
   addAttemptsPending,
   cleanExpirePending,
@@ -7,12 +8,15 @@ import {
   createUserFromPending,
   findPendingUser,
   findSessionbyRefreshToken,
+  findUserByGoogleSub,
   getPendingByEmail,
   getUserBy,
   revokeSession,
   savePendingRegistration,
+  setUserGoogleSub,
   updatePendingOtp,
 } from "../services/auth.service.js";
+import { getR2PublicUrl } from "../services/r2.storage.service.js";
 import { refreshCookieOptions } from "../utils/cookie.util.js";
 import {
   hashVailMailDomain,
@@ -29,12 +33,12 @@ import {
   hashOtp,
 } from "../utils/otp.util.js";
 import {
+  googleLoginSchema,
   loginSchema,
   registerSchema,
   resendVerificationSchema,
   verifyEmailSchema,
 } from "../validations/auth.schema.js";
-import { getR2PublicUrl } from "../services/r2.storage.service.js";
 
 export const register = async (req, res, next) => {
   const data = registerSchema.parse(req.body);
@@ -88,9 +92,9 @@ export const login = async (req, res, next) => {
   const refreshtoken = await createRefreshToken();
   const refreshTokenHash = await hashRefreshToken(refreshtoken);
   await createAuthSession(haveUser, refreshTokenHash);
-  let profileImageUrl = null
-  if(haveUser.profileImageKey){
-    profileImageUrl =getR2PublicUrl(haveUser.profileImageKey)
+  let profileImageUrl = null;
+  if (haveUser.profileImageKey) {
+    profileImageUrl = getR2PublicUrl(haveUser.profileImageKey);
   }
   res.cookie("refreshToken", refreshtoken, refreshCookieOptions);
   res.status(200).json({
@@ -98,9 +102,12 @@ export const login = async (req, res, next) => {
     accessToken: token,
     user: {
       id: haveUser.id,
+      firstName: haveUser.firstName,
+      lastName: haveUser.lastName,
       email: haveUser.email,
       role: haveUser.role,
       profileImageUrl,
+      phone: haveUser.phone,
     },
   });
 };
@@ -151,13 +158,13 @@ export const logout = async (req, res, next) => {
 };
 export const getMe = async (req, res, next) => {
   const user = await getUserBy("email", req.user.email);
-  let profileImageUrl = null
-  if(user.profileImageKey){
-    profileImageUrl =getR2PublicUrl(haveUser.profileImageKey)
+  let profileImageUrl = null;
+  if (user.profileImageKey) {
+    profileImageUrl = getR2PublicUrl(user.profileImageKey);
   }
   res.status(200).json({
     message: "Get user details",
-    user: {...user,profileImageUrl},
+    user: { ...user, profileImageUrl },
   });
 };
 
@@ -243,6 +250,7 @@ export const resendEmailOtp = async (req, res, next) => {
     );
     ((error.code = "OTP_RESEND_COOLDOWN"),
       (error.retryAfterSecond = retryAfterSecond));
+    return next(error);
   }
 
   const otp = generateOtp(); //get new otp
@@ -258,6 +266,84 @@ export const resendEmailOtp = async (req, res, next) => {
     message: "A new verificatioin code has sent to your eamil.",
     expiresAt,
     resendAvailableAt,
+  });
+};
+
+//google login
+export const googleLogin = async (req, res, next) => {
+  const { credential } = googleLoginSchema.parse(req.body);
+
+  const googleUser = await verifyGoogleCredential(credential);
+
+  if (!googleUser.email || !googleUser.emailVerified) {
+    return next(
+      createHttpError(401, "Google account email could not be verified."),
+    );
+  }
+
+  let user = await findUserByGoogleSub(googleUser.sub);
+
+  if (!user) {
+    user = await getUserBy("email", googleUser.email);
+
+    if (!user) {
+      return next(
+        createHttpError(404, "Account not found. Please register first."),
+      );
+    }
+
+    if (user.googleSub && user.googleSub !== googleUser.sub) {
+      return next(
+        createHttpError(
+          401,
+          "This account is linked to a different Google account.",
+        ),
+      );
+    }
+
+    if (!user.googleSub) {
+      user = await setUserGoogleSub(user.id, googleUser.sub);
+    }
+  }
+
+  if (!user.isVerified) {
+    return next(
+      createHttpError(403, "Please verify your account before logging in."),
+    );
+  }
+
+  if (!user.isActive) {
+    return next(createHttpError(403, "Account is inactive."));
+  }
+
+  const accessToken = await createAccessToken(user);
+
+  const refreshToken = await createRefreshToken();
+
+  const refreshTokenHash = await hashRefreshToken(refreshToken);
+
+  await createAuthSession(user, refreshTokenHash);
+
+  let profileImageUrl = null;
+
+  if (user.profileImageKey) {
+    profileImageUrl = getR2PublicUrl(user.profileImageKey);
+  }
+
+  res.cookie("refreshToken", refreshToken, refreshCookieOptions);
+
+  return res.status(200).json({
+    message: "Login Successful",
+    accessToken,
+    user: {
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      role: user.role,
+      profileImageUrl,
+      phone: user.phone,
+    },
   });
 };
 

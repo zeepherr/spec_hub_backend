@@ -7,10 +7,12 @@ import {
   findAllActiveListings,
   findListingById,
   findListingsBySeller,
+  findPublicListingById,
   updateListing,
   updateListingAndClearConditionAnswers,
 } from "../services/listing.service.js";
 import { toListingResponse } from "../utils/listing.response.js";
+import { toListingImageResponse } from "../utils/listingImage.response.js";
 import {
   createListingSchema,
   listingCategoryIdSchema,
@@ -204,5 +206,21 @@ export const getListingsByCategory = async (req, res, next) => {
     success: true,
     message: "Category listings fetched successfully",
     data: listings.map(toListingResponse),
+  });
+};
+
+export const getPublicListingById = async (req, res, next) => {
+  const { listingId } = listingIdSchema.parse(req.params);
+
+  const listing = await findPublicListingById(listingId);
+
+  if (!listing) {
+    return next(createHttpError(404, "Listing not found."));
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: "Listing fetched successfully",
+    data: toListingImageResponse(listing),
   });
 };

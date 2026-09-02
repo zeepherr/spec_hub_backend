@@ -7,12 +7,6 @@ const ai = new GoogleGenAI({
 
 const model = config.gemini_model;
 
-/*
-|--------------------------------------------------------------------------
-| BASIC TEXT TEST
-|--------------------------------------------------------------------------
-*/
-
 export const generateGeminiText = async (prompt) => {
   const response = await ai.models.generateContent({
     model,
@@ -21,12 +15,6 @@ export const generateGeminiText = async (prompt) => {
 
   return response.text;
 };
-
-/*
-|--------------------------------------------------------------------------
-| PRODUCT AUTOFILL FROM IMAGE
-|--------------------------------------------------------------------------
-*/
 
 export const analyzeProductImage = async ({ buffer, mimetype, categories }) => {
   const response = await ai.models.generateContent({

@@ -294,3 +294,50 @@ export const findActiveListingsByCategory = async (categoryId) => {
     },
   });
 };
+
+export const findPublicListingById = async (listingId) => {
+  return await prisma.listing.findFirst({
+    where: {
+      id: listingId,
+      status: "ACTIVE",
+      category: {
+        isActive: true,
+      },
+    },
+
+    include: {
+      category: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+
+      images: {
+        orderBy: {
+          sortOrder: "asc",
+        },
+      },
+
+      conditionAnswers: {
+        include: {
+          question: {
+            select: {
+              label: true,
+              answerType: true,
+            },
+          },
+        },
+      },
+
+      seller: {
+        select: {
+          id: true,
+
+          // add ONLY safe public seller fields
+          // based on your actual User model
+        },
+      },
+    },
+  });
+};
