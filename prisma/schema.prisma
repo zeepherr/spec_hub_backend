@@ -46,6 +46,7 @@ enum OrderStatus {
   SELLER_SHIPPING
   INSPECTION_PENDING
   INSPECTING
+  NEEDS_REVIEW
   VERIFIED
   REJECTED
   SHIPPING_TO_BUYER
@@ -376,14 +377,17 @@ model Payment {
 }
 
 model Checkout {
-  id        Int            @id @default(autoincrement())
-  buyerId   String
-  status    CheckoutStatus @default(AWAITING_PAYMENT)
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
-  buyer     User           @relation(fields: [buyerId], references: [id])
-  orders    Order[]
-  payment   Payment?
+  id                    Int            @id @default(autoincrement())
+  buyerId               String
+  status                CheckoutStatus @default(AWAITING_PAYMENT)
+  shippingRecipientName String?
+  shippingPhone         String?
+  shippingAddress       String?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  buyer                 User           @relation(fields: [buyerId], references: [id])
+  orders                Order[]
+  payment               Payment?
 
   @@index([buyerId])
   @@index([status])

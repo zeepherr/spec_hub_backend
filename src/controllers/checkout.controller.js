@@ -13,7 +13,7 @@ import { createCheckoutSchema } from "../validations/checkout.schema.js";
 
 // Creates one checkout containing one or more separate orders.
 export const createCheckout = async (req, res, next) => {
-  const { listingIds } = createCheckoutSchema.parse(req.body);
+  const { listingIds, shippingAddress } = createCheckoutSchema.parse(req.body);
 
   const buyerId = req.user.id;
 
@@ -52,7 +52,7 @@ export const createCheckout = async (req, res, next) => {
         );
       }
 
-      const checkout = await createCheckoutRecord(buyerId, tx);
+      const checkout = await createCheckoutRecord(buyerId, shippingAddress, tx);
 
       const ordersData = listings.map((listing) => ({
         orderNumber: `ORD-${Date.now()}-${randomUUID()

@@ -12,7 +12,7 @@ import cartItemRoute from "./routes/cartItem.route.js";
 import categoryRoute from "./routes/category.route.js";
 import checkoutRoute from "./routes/checkout.route.js";
 import listingRoute from "./routes/listing.route.js";
-import orderRoute from "./routes/order.route.js";
+import orderRoute, { adminOrderRoute } from "./routes/order.route.js";
 import paymentRoute from "./routes/payment.route.js";
 import profileRouter from "./routes/user.route.js";
 
@@ -36,6 +36,7 @@ app.use("/api/user", profileRouter);
 app.use("/api/cart", cartItemRoute);
 app.use("/api/checkouts", checkoutRoute);
 app.use("/api/orders", orderRoute);
+app.use("/api/admin/orders", adminOrderRoute);
 app.use("/api/payments", paymentRoute);
 app.use(notFound);
 app.use(errorHandler);
