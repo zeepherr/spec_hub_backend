@@ -36,9 +36,9 @@ const app = express.Router();
 app.get("/", getAllActiveListings);
 app.get("/public/:listingId", getPublicListingById);
 app.get("/category/:categoryId", getListingsByCategory);
-app.post("/:listingId/publish", publishListing);
 
 app.use(authenticate);
+app.post("/:listingId/publish", publishListing);
 app.post(
   "/identify-product",
   uploadImage.single("image"),
