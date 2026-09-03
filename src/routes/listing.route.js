@@ -8,6 +8,7 @@ import {
   getListingsByCategory,
   getMyListingById,
   getMyListings,
+  getPublicListingById,
   updateSellerListing,
 } from "../controllers/listing.controller.js";
 
@@ -33,7 +34,7 @@ import {
 const app = express.Router();
 
 app.get("/", getAllActiveListings);
-
+app.get("/public/:listingId", getPublicListingById);
 app.get("/category/:categoryId", getListingsByCategory);
 app.post("/:listingId/publish", publishListing);
 
