@@ -401,7 +401,7 @@ model Shipment {
   createdAt      DateTime       @default(now())
   order          Order          @relation(fields: [orderId], references: [id])
 
-  @@index([orderId])
+  @@index([orderId, shipmentType])
   @@index([trackingNumber])
 }
 

@@ -157,6 +157,12 @@ export const findOrderById = async (orderId, db = prisma) => {
       createdAt: true,
       updatedAt: true,
 
+      /*
+      |--------------------------------------------------------------------------
+      | Listing
+      |--------------------------------------------------------------------------
+      */
+
       listing: {
         select: {
           id: true,
@@ -182,6 +188,7 @@ export const findOrderById = async (orderId, db = prisma) => {
               sortOrder: true,
               isCover: true,
             },
+
             orderBy: {
               sortOrder: "asc",
             },
@@ -204,6 +211,24 @@ export const findOrderById = async (orderId, db = prisma) => {
         },
       },
 
+      /*
+      |--------------------------------------------------------------------------
+      | Buyer and Seller
+      |--------------------------------------------------------------------------
+      |
+      | Only safe identity fields are selected.
+      | Email, phone, address and password are excluded.
+      |--------------------------------------------------------------------------
+      */
+
+      buyer: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+
       seller: {
         select: {
           id: true,
@@ -211,6 +236,15 @@ export const findOrderById = async (orderId, db = prisma) => {
           lastName: true,
         },
       },
+
+      /*
+      |--------------------------------------------------------------------------
+      | Checkout and Payment
+      |--------------------------------------------------------------------------
+      |
+      | No Stripe providerRef is exposed.
+      |--------------------------------------------------------------------------
+      */
 
       checkout: {
         select: {
@@ -228,11 +262,108 @@ export const findOrderById = async (orderId, db = prisma) => {
         },
       },
 
+      /*
+      |--------------------------------------------------------------------------
+      | Shipments
+      |--------------------------------------------------------------------------
+      |
+      | Fetch both shipment types.
+      | The controller decides what Buyer, Seller and Admin can see.
+      |--------------------------------------------------------------------------
+      */
+
       shipments: {
-        where: {
-          shipmentType: "ADMIN_TO_BUYER",
+        select: {
+          id: true,
+          shipmentType: true,
+          carrier: true,
+          trackingNumber: true,
+          status: true,
+          shippedAt: true,
+          deliveredAt: true,
+          createdAt: true,
         },
 
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
+
+      /*
+      |--------------------------------------------------------------------------
+      | Inspection
+      |--------------------------------------------------------------------------
+      |
+      | Notes are selected here, but the controller will hide them
+      | from the Buyer.
+      |--------------------------------------------------------------------------
+      */
+
+      inspection: {
+        select: {
+          result: true,
+          verifiedCondition: true,
+          verifiedScore: true,
+          notes: true,
+          startedAt: true,
+          completedAt: true,
+        },
+      },
+    },
+  });
+};
+
+export const findOrdersBySeller = async (sellerId, db = prisma) => {
+  return await db.order.findMany({
+    where: {
+      sellerId,
+    },
+
+    select: {
+      id: true,
+      orderNumber: true,
+      agreedPrice: true,
+      status: true,
+      lockedAt: true,
+      completedAt: true,
+      cancelledAt: true,
+      rejectedAt: true,
+      createdAt: true,
+      updatedAt: true,
+
+      listing: {
+        select: {
+          id: true,
+          title: true,
+          brand: true,
+          model: true,
+          status: true,
+          estimatedCondition: true,
+
+          images: {
+            select: {
+              id: true,
+              imageKey: true,
+              sortOrder: true,
+              isCover: true,
+            },
+
+            orderBy: {
+              sortOrder: "asc",
+            },
+          },
+        },
+      },
+
+      buyer: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+
+      shipments: {
         select: {
           id: true,
           shipmentType: true,
@@ -246,8 +377,6 @@ export const findOrderById = async (orderId, db = prisma) => {
         orderBy: {
           createdAt: "desc",
         },
-
-        take: 1,
       },
 
       inspection: {
@@ -258,6 +387,88 @@ export const findOrderById = async (orderId, db = prisma) => {
           completedAt: true,
         },
       },
+    },
+
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+};
+
+export const findOrderForSellerShipment = async (orderId, db = prisma) => {
+  return await db.order.findUnique({
+    where: {
+      id: orderId,
+    },
+
+    select: {
+      id: true,
+      orderNumber: true,
+      sellerId: true,
+      status: true,
+
+      shipments: {
+        where: {
+          shipmentType: "SELLER_TO_ADMIN",
+        },
+
+        select: {
+          id: true,
+          shipmentType: true,
+          status: true,
+        },
+
+        take: 1,
+      },
+    },
+  });
+};
+
+export const markOrderAsSellerShipping = async (
+  orderId,
+  sellerId,
+  db = prisma,
+) => {
+  return await db.order.updateMany({
+    where: {
+      id: orderId,
+      sellerId,
+      status: "PAID",
+
+      shipments: {
+        none: {
+          shipmentType: "SELLER_TO_ADMIN",
+        },
+      },
+    },
+
+    data: {
+      status: "SELLER_SHIPPING",
+    },
+  });
+};
+
+export const createSellerToAdminShipment = async (data, db = prisma) => {
+  return await db.shipment.create({
+    data: {
+      orderId: data.orderId,
+      shipmentType: "SELLER_TO_ADMIN",
+      carrier: data.carrier,
+      trackingNumber: data.trackingNumber,
+      status: "SHIPPED",
+      shippedAt: data.shippedAt,
+    },
+
+    select: {
+      id: true,
+      orderId: true,
+      shipmentType: true,
+      carrier: true,
+      trackingNumber: true,
+      status: true,
+      shippedAt: true,
+      deliveredAt: true,
+      createdAt: true,
     },
   });
 };
