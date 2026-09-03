@@ -4,13 +4,17 @@ import createHttpError from "http-errors";
 import {
   createOrder,
   findListingForOrder,
+  findOrderById,
   findOrdersByBuyer,
   reserveActiveListing,
   runOrderTransaction,
 } from "../services/order.service.js";
 
 import { toListingResponse } from "../utils/listing.response.js";
-import { createOrderSchema } from "../validations/order.schema.js";
+import {
+  createOrderSchema,
+  orderIdSchema,
+} from "../validations/order.schema.js";
 
 // Creates a new order and reserves the listing for the buyer.
 export const createNewOrder = async (req, res, next) => {
@@ -79,5 +83,55 @@ export const getBuyingOrders = async (req, res) => {
     success: true,
     message: "Buying orders fetched successfully",
     data,
+  });
+};
+
+export const getBuyerOrderById = async (req, res, next) => {
+  const { orderId } = orderIdSchema.parse(req.params);
+
+  const order = await findOrderById(orderId);
+
+  if (!order) {
+    return next(createHttpError(404, "Order not found."));
+  }
+
+  if (order.buyerId !== req.user.id) {
+    return next(createHttpError(403, "You cannot access this order."));
+  }
+
+  const {
+    buyerId,
+    sellerId,
+    agreedPrice,
+    listing,
+    shipments,
+    inspection,
+    ...orderData
+  } = order;
+
+  return res.status(200).json({
+    success: true,
+    message: "Order fetched successfully",
+    data: {
+      ...orderData,
+
+      agreedPrice: Number(agreedPrice),
+
+      listing: toListingResponse(listing),
+
+      seller: orderData.seller,
+
+      deliveryShipment: shipments[0] ?? null,
+
+      inspection: inspection
+        ? {
+            ...inspection,
+            verifiedScore:
+              inspection.verifiedScore === null
+                ? null
+                : Number(inspection.verifiedScore),
+          }
+        : null,
+    },
   });
 };
