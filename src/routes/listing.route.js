@@ -3,12 +3,13 @@ import express from "express";
 import { identifyProductImage } from "../controllers/ai.controller.js";
 import {
   createDraftListing,
+  deleteSellerListing,
   getAllActiveListings,
   getListingsByCategory,
   getMyListingById,
   getMyListings,
   getPublicListingById,
-  updateDraftListing,
+  updateSellerListing,
 } from "../controllers/listing.controller.js";
 
 import {
@@ -34,8 +35,8 @@ const app = express.Router();
 
 app.get("/", getAllActiveListings);
 app.get("/public/:listingId", getPublicListingById);
-
 app.get("/category/:categoryId", getListingsByCategory);
+app.post("/:listingId/publish", publishListing);
 
 app.use(authenticate);
 app.post(
@@ -59,10 +60,10 @@ app.post(
   uploadListingImages,
 );
 app.post("/:listingId/analyze-condition", analyzeListingCondition);
-app.post("/:listingId/publish", publishListing);
 
 app.get("/:listingId", getMyListingById);
 
-app.patch("/:listingId", updateDraftListing);
+app.patch("/:listingId", updateSellerListing);
+app.delete("/:listingId", deleteSellerListing);
 
 export default app;

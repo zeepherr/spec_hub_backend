@@ -1,6 +1,9 @@
 import { findCategoryBy } from "../services/category.service.js";
+
 import {
+  countConditionQuestionAnswers,
   createConditionQuestion,
+  deleteConditionQuestionById,
   findConditionQuestionById,
   findConditionQuestionByLabel,
   findConditionQuestionByLabelExceptId,
@@ -31,16 +34,6 @@ export const createQuestion = async (req, res, next) => {
         errors: result.error.flatten(),
       });
     }
-
-    /*
-      Important:
-      Use result.data instead of req.params / req.body.
-
-      Because Zod has already:
-      - converted ids to number
-      - trimmed strings
-      - applied default values
-    */
 
     const { categoryId } = result.data.params;
 
@@ -198,10 +191,6 @@ export const updateQuestion = async (req, res, next) => {
       });
     }
 
-    /*
-      Duplicate label is business logic.
-    */
-
     if (label !== undefined) {
       const duplicateQuestion = await findConditionQuestionByLabelExceptId(
         categoryId,
@@ -218,24 +207,7 @@ export const updateQuestion = async (req, res, next) => {
       }
     }
 
-    /*
-      Zod cannot know the current DB answerType.
-
-      Therefore this belongs in controller.
-    */
-
     const finalAnswerType = answerType ?? currentQuestion.answerType;
-
-    /*
-      Existing BOOLEAN/NUMBER/TEXT question:
-
-      PATCH:
-      {
-        "options": ["Good", "Bad"]
-      }
-
-      Invalid.
-    */
 
     if (
       finalAnswerType !== "SELECT" &&
@@ -249,10 +221,6 @@ export const updateQuestion = async (req, res, next) => {
       });
     }
 
-    /*
-      BOOLEAN → SELECT requires options.
-    */
-
     if (
       currentQuestion.answerType !== "SELECT" &&
       finalAnswerType === "SELECT" &&
@@ -264,11 +232,6 @@ export const updateQuestion = async (req, res, next) => {
         message: "Options are required when changing answer type to SELECT",
       });
     }
-
-    /*
-      Existing SELECT cannot remove its options while
-      remaining SELECT.
-    */
 
     if (finalAnswerType === "SELECT" && options === null) {
       return res.status(400).json({
@@ -286,12 +249,6 @@ export const updateQuestion = async (req, res, next) => {
 
     if (answerType !== undefined) {
       updateData.answerType = answerType;
-
-      /*
-        SELECT → BOOLEAN / NUMBER / TEXT
-
-        Remove old SELECT options.
-      */
 
       if (answerType !== "SELECT") {
         updateData.options = null;
@@ -375,6 +332,54 @@ export const updateQuestionStatus = async (req, res, next) => {
         ? "Condition question activated successfully"
         : "Condition question deactivated successfully",
       data: updatedQuestion,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteQuestion = async (req, res, next) => {
+  try {
+    const result = questionParamsSchema.safeParse({
+      params: req.params,
+    });
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        code: "VALIDATION_ERROR",
+        message: "Invalid request parameters",
+        errors: result.error.flatten(),
+      });
+    }
+
+    const { categoryId, questionId } = result.data.params;
+
+    const question = await findConditionQuestionById(categoryId, questionId);
+
+    if (!question) {
+      return res.status(404).json({
+        success: false,
+        code: "CONDITION_QUESTION_NOT_FOUND",
+        message: "Condition question not found",
+      });
+    }
+
+    const answerCount = await countConditionQuestionAnswers(questionId);
+
+    if (answerCount > 0) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "This condition question cannot be deleted because it is already in use.",
+      });
+    }
+
+    await deleteConditionQuestionById(questionId);
+
+    return res.status(200).json({
+      success: true,
+      message: "Condition question deleted successfully",
     });
   } catch (error) {
     next(error);

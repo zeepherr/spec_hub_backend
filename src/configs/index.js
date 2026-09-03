@@ -15,7 +15,9 @@ export const config = {
   r2_public_url: process.env.R2_PUBLIC_URL || "",
   google_client_id: process.env.GOOGLE_CLIENT_ID || "",
   google_client_secret: process.env.GOOGLE_CLIENT_SECRET,
-
+  stripe_secret_key: process.env.STRIPE_SECRET_KEY || "",
+  stripe_publishable_key: process.env.STRIPE_PUBLISHABLE_KEY || "",
+  stripe_webhook_secret: process.env.STRIPE_WEBHOOK_SECRET || "",
   client_url: process.env.CLIENT_URL || "http://localhost:5173",
   gemini_api: process.env.GEMINI_API_KEY || "",
   gemini_model: process.env.GEMINI_MODEL || "",
