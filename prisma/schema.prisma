@@ -380,6 +380,11 @@ model Checkout {
   id                    Int            @id @default(autoincrement())
   buyerId               String
   status                CheckoutStatus @default(AWAITING_PAYMENT)
+  subtotal              Decimal        @default(0) @db.Decimal(12, 2)
+  productCheckingFee    Decimal        @default(0) @db.Decimal(12, 2)
+  deliveryFee           Decimal        @default(0) @db.Decimal(12, 2)
+  grandTotal            Decimal        @default(0) @db.Decimal(12, 2)
+  currency              String         @default("THB")
   shippingRecipientName String?
   shippingPhone         String?
   shippingAddress       String?

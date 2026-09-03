@@ -24,9 +24,15 @@ import {
   updatePaymentProviderRef,
 } from "../services/payment.service.js";
 
-import { createCheckoutPaymentSchema } from "../validations/payment.schema.js";
+import {
+  createCheckoutPaymentSchema,
+  paymentSessionSchema,
+} from "../validations/payment.schema.js";
 
-// Creates or reuses a Stripe Checkout Session for an existing checkout.
+const toMinorUnits = (amount) => {
+  return Math.round(Number(amount) * 100);
+};
+// Creates or reuses a Stripe Checkout Session.
 export const createCheckout = async (req, res, next) => {
   const { checkoutId } = createCheckoutPaymentSchema.parse(req.body);
 
@@ -69,10 +75,31 @@ export const createCheckout = async (req, res, next) => {
     );
   }
 
-  const totalAmount = checkout.orders.reduce(
-    (total, order) => total + Number(order.agreedPrice),
-    0,
-  );
+  const subtotalInMinorUnits = toMinorUnits(checkout.subtotal);
+
+  const checkingFeeInMinorUnits = toMinorUnits(checkout.productCheckingFee);
+
+  const deliveryFeeInMinorUnits = toMinorUnits(checkout.deliveryFee);
+
+  const grandTotalInMinorUnits = toMinorUnits(checkout.grandTotal);
+
+  const calculatedGrandTotal =
+    subtotalInMinorUnits + checkingFeeInMinorUnits + deliveryFeeInMinorUnits;
+
+  if (
+    grandTotalInMinorUnits <= 0 ||
+    grandTotalInMinorUnits !== calculatedGrandTotal
+  ) {
+    return next(
+      createHttpError(409, "The Checkout pricing snapshot is invalid."),
+    );
+  }
+
+  if (checkout.currency !== "THB") {
+    return next(
+      createHttpError(409, "The Checkout currency is not supported."),
+    );
+  }
 
   let payment = await findPaymentByCheckoutId(checkoutId);
 
@@ -80,7 +107,10 @@ export const createCheckout = async (req, res, next) => {
     payment = await createPayment({
       checkoutId,
       buyerId,
-      amount: totalAmount,
+
+      // Payment must use the complete Checkout total.
+      amount: checkout.grandTotal,
+
       status: "PENDING",
     });
   }
@@ -89,16 +119,39 @@ export const createCheckout = async (req, res, next) => {
     return next(createHttpError(409, "This payment is no longer pending."));
   }
 
-  // Reuse the existing Stripe Checkout Session if it is still open.
+  if (toMinorUnits(payment.amount) !== grandTotalInMinorUnits) {
+    return next(
+      createHttpError(
+        409,
+        "The Payment amount does not match the Checkout total.",
+      ),
+    );
+  }
+
+  // Reuse the Stripe Session if it is still open.
   if (payment.providerRef) {
     const existingSession = await getStripeCheckoutSession(payment.providerRef);
 
     if (existingSession.status === "open") {
+      if (
+        existingSession.amount_total !== grandTotalInMinorUnits ||
+        existingSession.currency !== checkout.currency.toLowerCase()
+      ) {
+        return next(
+          createHttpError(
+            409,
+            "The existing Stripe Session does not match the Checkout total.",
+          ),
+        );
+      }
+
       return res.status(200).json({
         message: "Stripe checkout retrieved successfully",
         data: {
           checkoutId,
           paymentId: payment.id,
+          amount: Number(checkout.grandTotal),
+          currency: checkout.currency,
           sessionId: existingSession.id,
           checkoutUrl: existingSession.url,
         },
@@ -127,7 +180,21 @@ export const createCheckout = async (req, res, next) => {
   const session = await createStripeCheckoutSession({
     checkoutId,
     orders: checkout.orders,
+
+    productCheckingFee: checkout.productCheckingFee,
+
+    deliveryFee: checkout.deliveryFee,
+    currency: checkout.currency,
   });
+
+  if (session.amount_total !== grandTotalInMinorUnits) {
+    return next(
+      createHttpError(
+        500,
+        "Stripe Session total does not match the Checkout total.",
+      ),
+    );
+  }
 
   await updatePaymentProviderRef(payment.id, session.id);
 
@@ -136,6 +203,8 @@ export const createCheckout = async (req, res, next) => {
     data: {
       checkoutId,
       paymentId: payment.id,
+      amount: Number(checkout.grandTotal),
+      currency: checkout.currency,
       sessionId: session.id,
       checkoutUrl: session.url,
     },
@@ -154,7 +223,7 @@ export const stripeWebhook = async (req, res, next) => {
       signature,
       config.stripe_webhook_secret,
     );
-  } catch (error) {
+  } catch {
     return next(createHttpError(400, "Invalid Stripe webhook signature."));
   }
 
@@ -179,15 +248,26 @@ export const stripeWebhook = async (req, res, next) => {
       return next(createHttpError(400, "Invalid Stripe checkout metadata."));
     }
 
-    const expectedAmount = Math.round(Number(payment.amount) * 100);
+    const expectedPaymentAmount = toMinorUnits(payment.amount);
 
-    if (session.amount_total !== expectedAmount) {
+    const expectedCheckoutAmount = toMinorUnits(payment.checkout.grandTotal);
+
+    if (expectedPaymentAmount !== expectedCheckoutAmount) {
+      return next(
+        createHttpError(
+          400,
+          "Payment amount does not match the Checkout total.",
+        ),
+      );
+    }
+
+    if (session.amount_total !== expectedCheckoutAmount) {
       return next(
         createHttpError(400, "Stripe payment amount does not match."),
       );
     }
 
-    if (session.currency !== "thb") {
+    if (session.currency !== payment.checkout.currency.toLowerCase()) {
       return next(createHttpError(400, "Invalid Stripe payment currency."));
     }
 
@@ -265,8 +345,21 @@ export const getPaymentStatus = async (req, res, next) => {
       paymentStatus: payment.status,
       amount: payment.amount,
       paidAt: payment.paidAt,
+
       checkoutId: payment.checkout.id,
       checkoutStatus: payment.checkout.status,
+
+      pricing: {
+        currency: payment.checkout.currency,
+        subtotal: payment.checkout.subtotal,
+
+        productCheckingFee: payment.checkout.productCheckingFee,
+
+        deliveryFee: payment.checkout.deliveryFee,
+
+        grandTotal: payment.checkout.grandTotal,
+      },
+
       orders: payment.checkout.orders,
     },
   });
