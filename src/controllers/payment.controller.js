@@ -13,6 +13,7 @@ import {
   findCheckoutForPayment,
   findPaymentByCheckoutId,
   findPaymentByProviderRef,
+  findPaymentStatusByProviderRef,
   markCheckoutExpired,
   markCheckoutOrdersPaid,
   markCheckoutPaid,
@@ -239,5 +240,34 @@ export const stripeWebhook = async (req, res, next) => {
 
   return res.status(200).json({
     received: true,
+  });
+};
+
+export const getPaymentStatus = async (req, res, next) => {
+  const { sessionId } = paymentSessionSchema.parse(req.params);
+
+  const payment = await findPaymentStatusByProviderRef(sessionId);
+
+  if (!payment) {
+    return next(createHttpError(404, "Payment not found."));
+  }
+
+  if (payment.buyerId !== req.user.id) {
+    return next(
+      createHttpError(403, "You are not allowed to access this payment."),
+    );
+  }
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      paymentId: payment.id,
+      paymentStatus: payment.status,
+      amount: payment.amount,
+      paidAt: payment.paidAt,
+      checkoutId: payment.checkout.id,
+      checkoutStatus: payment.checkout.status,
+      orders: payment.checkout.orders,
+    },
   });
 };

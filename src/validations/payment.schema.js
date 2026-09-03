@@ -4,3 +4,6 @@ import { z } from "zod";
 export const createCheckoutPaymentSchema = z.object({
   checkoutId: z.number().int().positive(),
 });
+export const paymentSessionSchema = z.object({
+  sessionId: z.string().trim().min(1),
+});

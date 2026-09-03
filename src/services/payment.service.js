@@ -171,3 +171,35 @@ export const cancelCheckoutOrders = async (checkoutId, db = prisma) => {
 export const runPaymentTransaction = async (callback) => {
   return await prisma.$transaction(callback);
 };
+
+export const findPaymentStatusByProviderRef = async (
+  providerRef,
+  db = prisma,
+) => {
+  return await db.payment.findFirst({
+    where: {
+      providerRef,
+    },
+    select: {
+      id: true,
+      buyerId: true,
+      amount: true,
+      status: true,
+      paidAt: true,
+      checkout: {
+        select: {
+          id: true,
+          status: true,
+          orders: {
+            select: {
+              id: true,
+              orderNumber: true,
+              status: true,
+              listingId: true,
+            },
+          },
+        },
+      },
+    },
+  });
+};
