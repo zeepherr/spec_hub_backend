@@ -12,7 +12,6 @@ import {
   updateListingAndClearConditionAnswers,
 } from "../services/listing.service.js";
 import { toListingResponse } from "../utils/listing.response.js";
-import { toListingImageResponse } from "../utils/listingImage.response.js";
 import {
   createListingSchema,
   listingCategoryIdSchema,
@@ -277,6 +276,6 @@ export const getPublicListingById = async (req, res, next) => {
   return res.status(200).json({
     success: true,
     message: "Listing fetched successfully",
-    data: toListingImageResponse(listing),
+    data: toListingResponse(listing),
   });
 };

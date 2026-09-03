@@ -4,3 +4,10 @@ import { z } from "zod";
 export const createOrderSchema = z.object({
   listingId: z.uuid(),
 });
+
+export const orderIdSchema = z.object({
+  orderId: z.coerce
+    .number()
+    .int("Order ID must be an integer.")
+    .positive("Order ID must be positive."),
+});
