@@ -4,10 +4,12 @@ import createHttpError from "http-errors";
 import {
   createOrder,
   findListingForOrder,
+  findOrdersByBuyer,
   reserveActiveListing,
   runOrderTransaction,
 } from "../services/order.service.js";
 
+import { toListingResponse } from "../utils/listing.response.js";
 import { createOrderSchema } from "../validations/order.schema.js";
 
 // Creates a new order and reserves the listing for the buyer.
@@ -57,5 +59,25 @@ export const createNewOrder = async (req, res, next) => {
   return res.status(201).json({
     message: "Order created successfully",
     data: order,
+  });
+};
+
+export const getBuyingOrders = async (req, res) => {
+  const orders = await findOrdersByBuyer(req.user.id);
+
+  const data = orders.map(({ agreedPrice, listing, shipments, ...order }) => ({
+    ...order,
+
+    agreedPrice: Number(agreedPrice),
+
+    listing: toListingResponse(listing),
+
+    deliveryShipment: shipments[0] ?? null,
+  }));
+
+  return res.status(200).json({
+    success: true,
+    message: "Buying orders fetched successfully",
+    data,
   });
 };

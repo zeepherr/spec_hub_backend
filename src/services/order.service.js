@@ -49,3 +49,90 @@ export const createOrder = async (data, db = prisma) => {
 export const runOrderTransaction = async (callback) => {
   return await prisma.$transaction(callback);
 };
+
+export const findOrdersByBuyer = async (buyerId, db = prisma) => {
+  return await db.order.findMany({
+    where: {
+      buyerId,
+    },
+
+    select: {
+      id: true,
+      orderNumber: true,
+      agreedPrice: true,
+      status: true,
+      createdAt: true,
+      updatedAt: true,
+
+      listing: {
+        select: {
+          id: true,
+          title: true,
+          brand: true,
+          model: true,
+          status: true,
+          estimatedCondition: true,
+
+          images: {
+            select: {
+              id: true,
+              imageKey: true,
+              sortOrder: true,
+              isCover: true,
+            },
+            orderBy: {
+              sortOrder: "asc",
+            },
+          },
+        },
+      },
+
+      seller: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+
+      checkout: {
+        select: {
+          id: true,
+          status: true,
+
+          payment: {
+            select: {
+              status: true,
+              paidAt: true,
+            },
+          },
+        },
+      },
+
+      shipments: {
+        where: {
+          shipmentType: "ADMIN_TO_BUYER",
+        },
+
+        select: {
+          id: true,
+          carrier: true,
+          trackingNumber: true,
+          status: true,
+          shippedAt: true,
+          deliveredAt: true,
+        },
+
+        orderBy: {
+          createdAt: "desc",
+        },
+
+        take: 1,
+      },
+    },
+
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+};
