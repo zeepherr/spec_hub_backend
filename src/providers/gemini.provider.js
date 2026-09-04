@@ -1,5 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
+import createHttpError from "http-errors";
+
 import { config } from "../configs/index.js";
+import { normalizeGeminiError } from "../utils/provider-error.js";
 
 const ai = new GoogleGenAI({
   apiKey: config.gemini_api,
@@ -7,17 +10,75 @@ const ai = new GoogleGenAI({
 
 const model = config.gemini_model;
 
+const blockedFinishReasons = new Set([
+  "SAFETY",
+  "RECITATION",
+  "BLOCKLIST",
+  "PROHIBITED_CONTENT",
+  "SPII",
+  "IMAGE_SAFETY",
+  "IMAGE_PROHIBITED_CONTENT",
+  "IMAGE_RECITATION",
+]);
+
+// Sends a request to Gemini and returns usable text.
+const requestGeminiText = async (request) => {
+  let response;
+
+  try {
+    response = await ai.models.generateContent(request);
+  } catch (error) {
+    throw normalizeGeminiError(error);
+  }
+
+  const text = response.text?.trim();
+
+  if (text) {
+    return text;
+  }
+
+  const finishReason = response.candidates?.[0]?.finishReason;
+
+  const promptBlockReason = response.promptFeedback?.blockReason;
+
+  const contentBlocked =
+    blockedFinishReasons.has(finishReason) ||
+    Boolean(
+      promptBlockReason && promptBlockReason !== "BLOCK_REASON_UNSPECIFIED",
+    );
+
+  if (contentBlocked) {
+    const error = createHttpError(
+      422,
+      "The AI service could not process this content.",
+    );
+
+    error.code = "AI_CONTENT_BLOCKED";
+
+    throw error;
+  }
+
+  const error = createHttpError(
+    502,
+    "The AI service returned an empty response.",
+  );
+
+  error.code = "AI_EMPTY_RESPONSE";
+
+  throw error;
+};
+
+// Generates normal text content.
 export const generateGeminiText = async (prompt) => {
-  const response = await ai.models.generateContent({
+  return await requestGeminiText({
     model,
     contents: prompt,
   });
-
-  return response.text;
 };
 
+// Analyzes a product image and suggests listing information.
 export const analyzeProductImage = async ({ buffer, mimetype, categories }) => {
-  const response = await ai.models.generateContent({
+  return await requestGeminiText({
     model,
 
     contents: [
@@ -99,10 +160,9 @@ Do not include code fences.
       responseMimeType: "application/json",
     },
   });
-
-  return response.text;
 };
 
+// Analyzes product condition using seller answers and images.
 export const analyzeProductCondition = async ({
   title,
   category,
@@ -115,7 +175,8 @@ export const analyzeProductCondition = async ({
   const formattedAnswers = answers
     .map(
       (answer) =>
-        `Question: ${answer.question}\nAnswer: ${JSON.stringify(answer.answer)}`,
+        `Question: ${answer.question}\n` +
+        `Answer: ${JSON.stringify(answer.answer)}`,
     )
     .join("\n\n");
 
@@ -126,7 +187,7 @@ export const analyzeProductCondition = async ({
     },
   }));
 
-  const response = await ai.models.generateContent({
+  return await requestGeminiText({
     model,
 
     contents: [
@@ -187,7 +248,7 @@ IMPORTANT RULES:
 - Return JSON only.
 - No markdown.
 - No code fences.
-          `,
+            `,
           },
 
           ...imageParts,
@@ -199,6 +260,4 @@ IMPORTANT RULES:
       responseMimeType: "application/json",
     },
   });
-
-  return response.text;
 };
