@@ -55,6 +55,22 @@ export const createCheckout = async (req, res, next) => {
       createHttpError(409, "This checkout is no longer awaiting payment."),
     );
   }
+  const reservationDurationMs = config.checkout_reservation_minutes * 60 * 1000;
+
+  const checkoutCreatedAt = new Date(checkout.createdAt).getTime();
+
+  const checkoutExpiresAt = checkoutCreatedAt + reservationDurationMs;
+
+  if (Date.now() >= checkoutExpiresAt) {
+    const error = createHttpError(
+      409,
+      "This checkout has expired. Please create a new checkout.",
+    );
+
+    error.code = "CHECKOUT_EXPIRED";
+
+    return next(error);
+  }
 
   if (checkout.orders.length === 0) {
     return next(

@@ -1,5 +1,12 @@
 import "dotenv/config";
 
+const getPositiveInteger = (value, fallback) => {
+  const parsedValue = Number.parseInt(value ?? "", 10);
+
+  return Number.isInteger(parsedValue) && parsedValue > 0
+    ? parsedValue
+    : fallback;
+};
 export const config = {
   port: process.env.PORT || "",
   database_url: process.env.DATABASE_URL || "",
@@ -21,6 +28,15 @@ export const config = {
   client_url: process.env.CLIENT_URL || "http://localhost:5173",
   gemini_api: process.env.GEMINI_API_KEY || "",
   gemini_model: process.env.GEMINI_MODEL || "",
+  checkout_reservation_minutes: getPositiveInteger(
+    process.env.CHECKOUT_RESERVATION_MINUTES,
+    3,
+  ),
+
+  checkout_cleanup_interval_seconds: getPositiveInteger(
+    process.env.CHECKOUT_CLEANUP_INTERVAL_SECONDS,
+    30,
+  ),
 };
 
 export const corsOptions = {
