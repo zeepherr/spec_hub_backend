@@ -3,14 +3,17 @@ import createHttpError from "http-errors";
 import { findCategoryBy } from "../services/category.service.js";
 import {
   createListing,
+  deleteListingById,
   findActiveListingsByCategory,
   findAllActiveListings,
   findListingById,
+  findListingForDelete,
   findListingsBySeller,
   findPublicListingById,
   updateListing,
   updateListingAndClearConditionAnswers,
 } from "../services/listing.service.js";
+import { deleteFromR2 } from "../services/r2.storage.service.js";
 import { toListingResponse } from "../utils/listing.response.js";
 import {
   createListingSchema,

@@ -182,7 +182,7 @@ export const createCheckout = async (req, res, next) => {
     orders: checkout.orders,
 
     productCheckingFee: checkout.productCheckingFee,
-
+    grandTotal: checkout.grandTotal,
     deliveryFee: checkout.deliveryFee,
     currency: checkout.currency,
   });
