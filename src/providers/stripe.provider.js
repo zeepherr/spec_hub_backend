@@ -152,4 +152,13 @@ export const getStripeCheckoutSession = async (sessionId) => {
   }
 };
 
+// Manually expires an open Stripe Checkout Session.
+export const expireStripeCheckoutSession = async (sessionId) => {
+  try {
+    return await stripe.checkout.sessions.expire(sessionId);
+  } catch (error) {
+    throw normalizeStripeError(error);
+  }
+};
+
 export default stripe;

@@ -1,6 +1,7 @@
 import createHttpError from "http-errors";
 import { MulterError } from "multer";
 import { ZodError } from "zod";
+import { config } from "../configs/index.js";
 
 const sendError = (res, status, code, message, extra = {}) => {
   return res.status(status).json({
@@ -99,16 +100,26 @@ export const errorHandler = (err, req, res, next) => {
     res.set("Retry-After", String(err.retryAfterSeconds));
   }
 
-  // Server-side logging only.
-  console.error("Request failed", {
+  const logDetails = {
     method: req.method,
     path: req.originalUrl,
     status,
     name: err.name,
+    code: err.code,
     message: err.message,
-    providerRequestId: err.requestId,
-    stack: err.stack,
-  });
+
+    providerRequestId:
+      err.providerRequestId ?? err.requestId ?? err.cause?.requestId,
+  };
+
+  if (status >= 500) {
+    console.error("Request failed", {
+      ...logDetails,
+      stack: err.stack,
+    });
+  } else if (config.node_env === "development" && status !== 401) {
+    console.warn("Request rejected", logDetails);
+  }
 
   return sendError(
     res,

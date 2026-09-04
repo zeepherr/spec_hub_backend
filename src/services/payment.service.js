@@ -223,3 +223,66 @@ export const findPaymentStatusByProviderRef = async (
     },
   });
 };
+
+// Finds unpaid Checkouts older than the configured
+// reservation deadline.
+export const findExpiredAwaitingPaymentCheckouts = async (
+  expirationCutoff,
+  limit = 50,
+  db = prisma,
+) => {
+  return await db.checkout.findMany({
+    where: {
+      status: "AWAITING_PAYMENT",
+
+      createdAt: {
+        lte: expirationCutoff,
+      },
+    },
+
+    select: {
+      id: true,
+      createdAt: true,
+    },
+
+    orderBy: {
+      createdAt: "asc",
+    },
+
+    take: limit,
+  });
+};
+
+// Atomically expires an unpaid Checkout and releases
+// its reserved Listings.
+export const expireUnpaidCheckout = async ({
+  checkoutId,
+  paymentId = null,
+}) => {
+  return await prisma.$transaction(async (tx) => {
+    const checkoutUpdate = await markCheckoutExpired(checkoutId, tx);
+
+    /*
+     * Another process or the Stripe webhook
+     * may have already changed the Checkout.
+     */
+    if (checkoutUpdate.count !== 1) {
+      return false;
+    }
+
+    if (paymentId) {
+      await markPaymentExpired(paymentId, tx);
+    }
+
+    /*
+     * Release Listings before cancelling Orders
+     * because releaseCheckoutListings currently
+     * searches for AWAITING_PAYMENT Orders.
+     */
+    await releaseCheckoutListings(checkoutId, tx);
+
+    await cancelCheckoutOrders(checkoutId, tx);
+
+    return true;
+  });
+};
