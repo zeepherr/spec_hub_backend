@@ -18,10 +18,7 @@ import {
 } from "../services/auth.service.js";
 import { getR2PublicUrl } from "../services/r2.storage.service.js";
 import { refreshCookieOptions } from "../utils/cookie.util.js";
-import {
-  hashVailMailDomain,
-  sendRegistrationOtp,
-} from "../utils/email.util.js";
+import { sendRegistrationOtp } from "../utils/email.util.js";
 import {
   createAccessToken,
   createRefreshToken,
@@ -43,8 +40,8 @@ import {
 export const register = async (req, res, next) => {
   const data = registerSchema.parse(req.body);
   const { firstName, lastName, email, password } = data;
-  const isMail = await hashVailMailDomain(email);
-  if (!isMail) return next(createHttpError(400, "Please enter a valid email."));
+  // const isMail = await hashVailMailDomain(email);
+  // if (!isMail) return next(createHttpError(400, "Please enter a valid email."));
 
   const haveUser = await getUserBy("email", email);
   if (haveUser)
