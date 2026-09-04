@@ -1,0 +1,5 @@
+export const CHECKOUT_FEES = Object.freeze({
+  PRODUCT_CHECKING_PER_ITEM: "50.00",
+  DELIVERY_PER_CHECKOUT: "150.00",
+  CURRENCY: "THB",
+});

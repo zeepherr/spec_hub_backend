@@ -34,15 +34,39 @@ export const reserveActiveListings = async (listingIds, db = prisma) => {
 };
 
 // Creates the parent checkout for one or more orders.
-export const createCheckoutRecord = async (buyerId, db = prisma) => {
+export const createCheckoutRecord = async (
+  { buyerId, shippingAddress, pricing },
+  db = prisma,
+) => {
   return await db.checkout.create({
     data: {
       buyerId,
+
+      subtotal: pricing.subtotal,
+      productCheckingFee: pricing.productCheckingFee,
+      deliveryFee: pricing.deliveryFee,
+      grandTotal: pricing.grandTotal,
+      currency: pricing.currency,
+
+      shippingRecipientName: shippingAddress.recipientName,
+      shippingPhone: shippingAddress.phone,
+      shippingAddress: shippingAddress.address,
     },
     select: {
       id: true,
       buyerId: true,
       status: true,
+
+      subtotal: true,
+      productCheckingFee: true,
+      deliveryFee: true,
+      grandTotal: true,
+      currency: true,
+
+      shippingRecipientName: true,
+      shippingPhone: true,
+      shippingAddress: true,
+
       createdAt: true,
     },
   });

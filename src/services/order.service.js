@@ -137,6 +137,162 @@ export const findOrdersByBuyer = async (buyerId, db = prisma) => {
   });
 };
 
+export const findOrderForDeliveryConfirmation = async (
+  orderId,
+  db = prisma,
+) => {
+  return await db.order.findUnique({
+    where: {
+      id: orderId,
+    },
+
+    select: {
+      id: true,
+      orderNumber: true,
+      checkoutId: true,
+      listingId: true,
+      buyerId: true,
+      status: true,
+
+      listing: {
+        select: {
+          id: true,
+          status: true,
+        },
+      },
+
+      shipments: {
+        where: {
+          shipmentType: "ADMIN_TO_BUYER",
+        },
+
+        select: {
+          id: true,
+          orderId: true,
+          shipmentType: true,
+          carrier: true,
+          trackingNumber: true,
+          status: true,
+          shippedAt: true,
+          deliveredAt: true,
+          createdAt: true,
+        },
+
+        take: 1,
+      },
+    },
+  });
+};
+
+export const markOrderCompleted = async (
+  orderId,
+  buyerId,
+  completedAt,
+  db = prisma,
+) => {
+  return await db.order.updateMany({
+    where: {
+      id: orderId,
+      buyerId,
+      status: "SHIPPING_TO_BUYER",
+    },
+
+    data: {
+      status: "COMPLETED",
+      completedAt,
+    },
+  });
+};
+
+export const markBuyerShipmentDelivered = async (
+  orderId,
+  deliveredAt,
+  db = prisma,
+) => {
+  return await db.shipment.updateMany({
+    where: {
+      orderId,
+      shipmentType: "ADMIN_TO_BUYER",
+
+      status: {
+        in: ["SHIPPED", "IN_TRANSIT"],
+      },
+    },
+
+    data: {
+      status: "DELIVERED",
+      deliveredAt,
+    },
+  });
+};
+
+export const findBuyerShipmentByOrderId = async (orderId, db = prisma) => {
+  return await db.shipment.findFirst({
+    where: {
+      orderId,
+      shipmentType: "ADMIN_TO_BUYER",
+    },
+
+    select: {
+      id: true,
+      orderId: true,
+      shipmentType: true,
+      carrier: true,
+      trackingNumber: true,
+      status: true,
+      shippedAt: true,
+      deliveredAt: true,
+      createdAt: true,
+    },
+  });
+};
+
+export const markListingSold = async (listingId, db = prisma) => {
+  return await db.listing.updateMany({
+    where: {
+      id: listingId,
+      status: "RESERVED",
+    },
+
+    data: {
+      status: "SOLD",
+    },
+  });
+};
+
+export const countIncompleteCheckoutOrders = async (
+  checkoutId,
+  db = prisma,
+) => {
+  return await db.order.count({
+    where: {
+      checkoutId,
+
+      status: {
+        not: "COMPLETED",
+      },
+    },
+  });
+};
+
+export const markCheckoutPaymentReleased = async (
+  checkoutId,
+  releasedAt,
+  db = prisma,
+) => {
+  return await db.payment.updateMany({
+    where: {
+      checkoutId,
+      status: "PAID",
+    },
+
+    data: {
+      status: "RELEASED",
+      releasedAt,
+    },
+  });
+};
+
 export const findOrderById = async (orderId, db = prisma) => {
   return await db.order.findUnique({
     where: {
@@ -156,12 +312,6 @@ export const findOrderById = async (orderId, db = prisma) => {
       rejectedAt: true,
       createdAt: true,
       updatedAt: true,
-
-      /*
-      |--------------------------------------------------------------------------
-      | Listing
-      |--------------------------------------------------------------------------
-      */
 
       listing: {
         select: {
@@ -211,15 +361,10 @@ export const findOrderById = async (orderId, db = prisma) => {
         },
       },
 
-      /*
-      |--------------------------------------------------------------------------
-      | Buyer and Seller
-      |--------------------------------------------------------------------------
-      |
-      | Only safe identity fields are selected.
-      | Email, phone, address and password are excluded.
-      |--------------------------------------------------------------------------
-      */
+      // | Buyer and Seller
+
+      // | Only safe identity fields are selected.
+      // | Email, phone, address and password are excluded.
 
       buyer: {
         select: {
@@ -237,19 +382,18 @@ export const findOrderById = async (orderId, db = prisma) => {
         },
       },
 
-      /*
-      |--------------------------------------------------------------------------
-      | Checkout and Payment
-      |--------------------------------------------------------------------------
-      |
-      | No Stripe providerRef is exposed.
-      |--------------------------------------------------------------------------
-      */
+      // | Checkout and Payment
+
+      // | No Stripe providerRef is exposed.
 
       checkout: {
         select: {
           id: true,
           status: true,
+
+          shippingRecipientName: true,
+          shippingPhone: true,
+          shippingAddress: true,
 
           payment: {
             select: {
@@ -262,15 +406,8 @@ export const findOrderById = async (orderId, db = prisma) => {
         },
       },
 
-      /*
-      |--------------------------------------------------------------------------
-      | Shipments
-      |--------------------------------------------------------------------------
-      |
-      | Fetch both shipment types.
-      | The controller decides what Buyer, Seller and Admin can see.
-      |--------------------------------------------------------------------------
-      */
+      // | Fetch both shipment types.
+      // | The controller decides what Buyer, Seller and Admin can see.
 
       shipments: {
         select: {
@@ -289,15 +426,10 @@ export const findOrderById = async (orderId, db = prisma) => {
         },
       },
 
-      /*
-      |--------------------------------------------------------------------------
-      | Inspection
-      |--------------------------------------------------------------------------
-      |
-      | Notes are selected here, but the controller will hide them
-      | from the Buyer.
-      |--------------------------------------------------------------------------
-      */
+      // | Inspection
+
+      // | Notes are selected here, but the controller will hide them
+      // | from the Buyer.
 
       inspection: {
         select: {
@@ -453,6 +585,446 @@ export const createSellerToAdminShipment = async (data, db = prisma) => {
     data: {
       orderId: data.orderId,
       shipmentType: "SELLER_TO_ADMIN",
+      carrier: data.carrier,
+      trackingNumber: data.trackingNumber,
+      status: "SHIPPED",
+      shippedAt: data.shippedAt,
+    },
+
+    select: {
+      id: true,
+      orderId: true,
+      shipmentType: true,
+      carrier: true,
+      trackingNumber: true,
+      status: true,
+      shippedAt: true,
+      deliveredAt: true,
+      createdAt: true,
+    },
+  });
+};
+
+export const findOrdersForAdmin = async (statuses, db = prisma) => {
+  return await db.order.findMany({
+    where:
+      statuses?.length > 0
+        ? {
+            status: {
+              in: statuses,
+            },
+          }
+        : {},
+
+    select: {
+      id: true,
+      orderNumber: true,
+      agreedPrice: true,
+      status: true,
+      createdAt: true,
+      updatedAt: true,
+
+      listing: {
+        select: {
+          id: true,
+          title: true,
+          brand: true,
+          model: true,
+
+          images: {
+            orderBy: {
+              sortOrder: "asc",
+            },
+          },
+        },
+      },
+
+      buyer: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+
+      seller: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+
+      checkout: {
+        select: {
+          id: true,
+          status: true,
+
+          shippingRecipientName: true,
+          shippingPhone: true,
+          shippingAddress: true,
+
+          payment: {
+            select: {
+              status: true,
+              paidAt: true,
+            },
+          },
+        },
+      },
+
+      shipments: {
+        select: {
+          id: true,
+          shipmentType: true,
+          carrier: true,
+          trackingNumber: true,
+          status: true,
+          shippedAt: true,
+          deliveredAt: true,
+          createdAt: true,
+        },
+
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
+
+      inspection: {
+        select: {
+          id: true,
+          result: true,
+          verifiedCondition: true,
+          verifiedScore: true,
+          notes: true,
+          startedAt: true,
+          completedAt: true,
+        },
+      },
+    },
+
+    orderBy: {
+      createdAt: "asc",
+    },
+  });
+};
+
+// Finds the order and seller shipment before Admin receives it.
+export const findOrderForAdminReceipt = async (orderId, db = prisma) => {
+  return await db.order.findUnique({
+    where: {
+      id: orderId,
+    },
+
+    select: {
+      id: true,
+      orderNumber: true,
+      status: true,
+
+      shipments: {
+        where: {
+          shipmentType: "SELLER_TO_ADMIN",
+        },
+
+        select: {
+          id: true,
+          orderId: true,
+          shipmentType: true,
+          carrier: true,
+          trackingNumber: true,
+          status: true,
+          shippedAt: true,
+          deliveredAt: true,
+          createdAt: true,
+        },
+
+        take: 1,
+      },
+    },
+  });
+};
+
+// Changes the Order only when it is still waiting for Admin receipt.
+export const markOrderInspectionPending = async (orderId, db = prisma) => {
+  return await db.order.updateMany({
+    where: {
+      id: orderId,
+      status: "SELLER_SHIPPING",
+    },
+
+    data: {
+      status: "INSPECTION_PENDING",
+    },
+  });
+};
+
+// Marks the Seller-to-Admin shipment as delivered.
+export const markSellerShipmentDelivered = async (
+  orderId,
+  deliveredAt,
+  db = prisma,
+) => {
+  return await db.shipment.updateMany({
+    where: {
+      orderId,
+      shipmentType: "SELLER_TO_ADMIN",
+
+      status: {
+        in: ["SHIPPED", "IN_TRANSIT"],
+      },
+    },
+
+    data: {
+      status: "DELIVERED",
+      deliveredAt,
+    },
+  });
+};
+
+// Returns the updated Seller-to-Admin shipment.
+export const findSellerShipmentByOrderId = async (orderId, db = prisma) => {
+  return await db.shipment.findFirst({
+    where: {
+      orderId,
+      shipmentType: "SELLER_TO_ADMIN",
+    },
+
+    select: {
+      id: true,
+      orderId: true,
+      shipmentType: true,
+      carrier: true,
+      trackingNumber: true,
+      status: true,
+      shippedAt: true,
+      deliveredAt: true,
+      createdAt: true,
+    },
+  });
+};
+
+// Finds an Order before starting its inspection.
+export const findOrderForInspectionStart = async (orderId, db = prisma) => {
+  return await db.order.findUnique({
+    where: {
+      id: orderId,
+    },
+
+    select: {
+      id: true,
+      orderNumber: true,
+      status: true,
+
+      inspection: {
+        select: {
+          id: true,
+          adminId: true,
+          result: true,
+          startedAt: true,
+        },
+      },
+    },
+  });
+};
+
+// Changes the Order only if it is waiting for inspection.
+export const markOrderInspecting = async (orderId, db = prisma) => {
+  return await db.order.updateMany({
+    where: {
+      id: orderId,
+      status: "INSPECTION_PENDING",
+    },
+
+    data: {
+      status: "INSPECTING",
+    },
+  });
+};
+
+// Creates the inspection and assigns it to the Admin.
+export const createOrderInspection = async (data, db = prisma) => {
+  return await db.inspection.create({
+    data: {
+      orderId: data.orderId,
+      adminId: data.adminId,
+      result: "PENDING",
+      startedAt: data.startedAt,
+    },
+
+    select: {
+      id: true,
+      orderId: true,
+      adminId: true,
+      result: true,
+      verifiedCondition: true,
+      verifiedScore: true,
+      notes: true,
+      startedAt: true,
+      completedAt: true,
+    },
+  });
+};
+
+export const findOrderForInspectionCompletion = async (
+  orderId,
+  db = prisma,
+) => {
+  return await db.order.findUnique({
+    where: {
+      id: orderId,
+    },
+
+    select: {
+      id: true,
+      orderNumber: true,
+      status: true,
+
+      inspection: {
+        select: {
+          id: true,
+          orderId: true,
+          adminId: true,
+          result: true,
+          startedAt: true,
+          completedAt: true,
+        },
+      },
+    },
+  });
+};
+
+export const completeOrderInspection = async (
+  inspectionId,
+  adminId,
+  data,
+  db = prisma,
+) => {
+  return await db.inspection.updateMany({
+    where: {
+      id: inspectionId,
+      adminId,
+      result: "PENDING",
+      completedAt: null,
+    },
+
+    data: {
+      result: data.result,
+      verifiedCondition: data.verifiedCondition ?? null,
+      verifiedScore: data.verifiedScore ?? null,
+      notes: data.notes ?? null,
+      completedAt: data.completedAt,
+    },
+  });
+};
+
+export const markOrderAfterInspection = async (
+  orderId,
+  nextStatus,
+  completedAt,
+  db = prisma,
+) => {
+  return await db.order.updateMany({
+    where: {
+      id: orderId,
+      status: "INSPECTING",
+    },
+
+    data: {
+      status: nextStatus,
+
+      ...(nextStatus === "REJECTED" && {
+        rejectedAt: completedAt,
+      }),
+    },
+  });
+};
+
+export const findInspectionById = async (inspectionId, db = prisma) => {
+  return await db.inspection.findUnique({
+    where: {
+      id: inspectionId,
+    },
+
+    select: {
+      id: true,
+      orderId: true,
+      adminId: true,
+      result: true,
+      verifiedCondition: true,
+      verifiedScore: true,
+      notes: true,
+      startedAt: true,
+      completedAt: true,
+    },
+  });
+};
+
+// Finds a verified Order before shipping it to the Buyer.
+export const findOrderForBuyerShipment = async (orderId, db = prisma) => {
+  return await db.order.findUnique({
+    where: {
+      id: orderId,
+    },
+
+    select: {
+      id: true,
+      orderNumber: true,
+      status: true,
+
+      checkout: {
+        select: {
+          shippingRecipientName: true,
+          shippingPhone: true,
+          shippingAddress: true,
+        },
+      },
+
+      shipments: {
+        where: {
+          shipmentType: "ADMIN_TO_BUYER",
+        },
+
+        select: {
+          id: true,
+          shipmentType: true,
+          status: true,
+        },
+
+        take: 1,
+      },
+    },
+  });
+};
+
+// Changes the Order only if it is still VERIFIED
+// and has no Admin-to-Buyer shipment.
+export const markOrderAsShippingToBuyer = async (orderId, db = prisma) => {
+  return await db.order.updateMany({
+    where: {
+      id: orderId,
+      status: "VERIFIED",
+
+      shipments: {
+        none: {
+          shipmentType: "ADMIN_TO_BUYER",
+        },
+      },
+    },
+
+    data: {
+      status: "SHIPPING_TO_BUYER",
+    },
+  });
+};
+
+// Creates the Admin-to-Buyer shipment.
+export const createAdminToBuyerShipment = async (data, db = prisma) => {
+  return await db.shipment.create({
+    data: {
+      orderId: data.orderId,
+      shipmentType: "ADMIN_TO_BUYER",
       carrier: data.carrier,
       trackingNumber: data.trackingNumber,
       status: "SHIPPED",

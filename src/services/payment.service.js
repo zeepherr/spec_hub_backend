@@ -1,6 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 
-// Finds the checkout and its orders required before starting payment.
+// Finds the Checkout and pricing snapshot.
 export const findCheckoutForPayment = async (checkoutId, db = prisma) => {
   return await db.checkout.findUnique({
     where: {
@@ -10,12 +10,20 @@ export const findCheckoutForPayment = async (checkoutId, db = prisma) => {
       id: true,
       buyerId: true,
       status: true,
+
+      subtotal: true,
+      productCheckingFee: true,
+      deliveryFee: true,
+      grandTotal: true,
+      currency: true,
+
       orders: {
         select: {
           id: true,
           orderNumber: true,
           agreedPrice: true,
           status: true,
+
           listing: {
             select: {
               id: true,
@@ -28,7 +36,6 @@ export const findCheckoutForPayment = async (checkoutId, db = prisma) => {
   });
 };
 
-// Finds the existing payment for a checkout.
 export const findPaymentByCheckoutId = async (checkoutId, db = prisma) => {
   return await db.payment.findUnique({
     where: {
@@ -37,14 +44,12 @@ export const findPaymentByCheckoutId = async (checkoutId, db = prisma) => {
   });
 };
 
-// Creates a pending payment for the checkout.
 export const createPayment = async (data, db = prisma) => {
   return await db.payment.create({
     data,
   });
 };
 
-// Saves the Stripe Checkout Session ID.
 export const updatePaymentProviderRef = async (
   paymentId,
   providerRef,
@@ -60,16 +65,29 @@ export const updatePaymentProviderRef = async (
   });
 };
 
-// Finds a payment using the Stripe Checkout Session ID.
 export const findPaymentByProviderRef = async (providerRef, db = prisma) => {
   return await db.payment.findFirst({
     where: {
       providerRef,
     },
+    select: {
+      id: true,
+      checkoutId: true,
+      buyerId: true,
+      amount: true,
+      status: true,
+      providerRef: true,
+
+      checkout: {
+        select: {
+          grandTotal: true,
+          currency: true,
+        },
+      },
+    },
   });
 };
 
-// Marks a pending payment as paid.
 export const markPaymentPaid = async (paymentId, paidAt, db = prisma) => {
   return await db.payment.updateMany({
     where: {
@@ -83,7 +101,6 @@ export const markPaymentPaid = async (paymentId, paidAt, db = prisma) => {
   });
 };
 
-// Marks the checkout as paid.
 export const markCheckoutPaid = async (checkoutId, db = prisma) => {
   return await db.checkout.updateMany({
     where: {
@@ -96,7 +113,6 @@ export const markCheckoutPaid = async (checkoutId, db = prisma) => {
   });
 };
 
-// Marks all unpaid orders in the checkout as paid.
 export const markCheckoutOrdersPaid = async (checkoutId, db = prisma) => {
   return await db.order.updateMany({
     where: {
@@ -109,7 +125,6 @@ export const markCheckoutOrdersPaid = async (checkoutId, db = prisma) => {
   });
 };
 
-// Marks an unpaid checkout as expired.
 export const markCheckoutExpired = async (checkoutId, db = prisma) => {
   return await db.checkout.updateMany({
     where: {
@@ -122,7 +137,6 @@ export const markCheckoutExpired = async (checkoutId, db = prisma) => {
   });
 };
 
-// Marks a pending payment as expired.
 export const markPaymentExpired = async (paymentId, db = prisma) => {
   return await db.payment.updateMany({
     where: {
@@ -135,11 +149,11 @@ export const markPaymentExpired = async (paymentId, db = prisma) => {
   });
 };
 
-// Releases listings reserved by unpaid orders in the checkout.
 export const releaseCheckoutListings = async (checkoutId, db = prisma) => {
   return await db.listing.updateMany({
     where: {
       status: "RESERVED",
+
       orders: {
         some: {
           checkoutId,
@@ -153,7 +167,6 @@ export const releaseCheckoutListings = async (checkoutId, db = prisma) => {
   });
 };
 
-// Cancels unpaid orders belonging to an expired checkout.
 export const cancelCheckoutOrders = async (checkoutId, db = prisma) => {
   return await db.order.updateMany({
     where: {
@@ -167,7 +180,6 @@ export const cancelCheckoutOrders = async (checkoutId, db = prisma) => {
   });
 };
 
-// Runs payment-related database updates inside one transaction.
 export const runPaymentTransaction = async (callback) => {
   return await prisma.$transaction(callback);
 };
@@ -186,10 +198,18 @@ export const findPaymentStatusByProviderRef = async (
       amount: true,
       status: true,
       paidAt: true,
+
       checkout: {
         select: {
           id: true,
           status: true,
+
+          subtotal: true,
+          productCheckingFee: true,
+          deliveryFee: true,
+          grandTotal: true,
+          currency: true,
+
           orders: {
             select: {
               id: true,
