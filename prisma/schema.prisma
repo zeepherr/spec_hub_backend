@@ -22,6 +22,7 @@ enum ListingStatus {
   ACTIVE
   RESERVED
   SOLD
+  REJECTED
   ARCHIVED
 }
 
@@ -30,6 +31,13 @@ enum ConditionGrade {
   GOOD
   FAIR
   POOR
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
 }
 
 enum AnswerType {
@@ -66,6 +74,7 @@ enum PaymentStatus {
   PAID
   FAILED
   EXPIRED
+  PARTIALLY_REFUNDED
   REFUNDED
   RELEASED
 }
@@ -73,6 +82,7 @@ enum PaymentStatus {
 enum ShipmentType {
   SELLER_TO_ADMIN
   ADMIN_TO_BUYER
+  ADMIN_TO_SELLER
 }
 
 enum ShipmentStatus {
@@ -359,18 +369,21 @@ model CartItem {
 }
 
 model Payment {
-  id          Int           @id @default(autoincrement())
-  checkoutId  Int           @unique
-  buyerId     String
-  amount      Decimal       @db.Decimal(12, 2)
-  status      PaymentStatus @default(PENDING)
-  providerRef String?
-  paidAt      DateTime?
-  refundedAt  DateTime?
-  releasedAt  DateTime?
-  createdAt   DateTime      @default(now())
-  checkout    Checkout      @relation(fields: [checkoutId], references: [id])
-  buyer       User          @relation(fields: [buyerId], references: [id])
+  id               Int           @id @default(autoincrement())
+  checkoutId       Int           @unique
+  buyerId          String
+  amount           Decimal       @db.Decimal(12, 2)
+  refundedAmount   Decimal       @default(0) @db.Decimal(12, 2)
+  status           PaymentStatus @default(PENDING)
+  providerRef      String?
+  paymentIntentRef String?
+  paidAt           DateTime?
+  refundedAt       DateTime?
+  releasedAt       DateTime?
+  createdAt        DateTime      @default(now())
+  checkout         Checkout      @relation(fields: [checkoutId], references: [id])
+  buyer            User          @relation(fields: [buyerId], references: [id])
+  refunds          Refund[]
 
   @@index([buyerId])
   @@index([status])
@@ -393,6 +406,7 @@ model Checkout {
   buyer                 User           @relation(fields: [buyerId], references: [id])
   orders                Order[]
   payment               Payment?
+  refund                Refund?
 
   @@index([buyerId])
   @@index([status])
@@ -410,7 +424,7 @@ model Shipment {
   createdAt      DateTime       @default(now())
   order          Order          @relation(fields: [orderId], references: [id])
 
-  @@index([orderId, shipmentType])
+  @@unique([orderId, shipmentType])
   @@index([trackingNumber])
 }
 
@@ -441,6 +455,30 @@ model InspectionItem {
   inspection   Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
 
   @@index([inspectionId])
+}
+
+model Refund {
+  id         Int          @id @default(autoincrement())
+  checkoutId Int          @unique
+  paymentId  Int
+  amount     Decimal      @db.Decimal(12, 2)
+  currency   String       @default("THB")
+  status     RefundStatus @default(PENDING)
+
+  reason         String?
+  providerRef    String? // Stripe refund id: re_...
+  failureCode    String?
+  failureMessage String?
+
+  createdAt   DateTime  @default(now())
+  processedAt DateTime?
+  failedAt    DateTime?
+
+  checkout Checkout @relation(fields: [checkoutId], references: [id])
+  payment  Payment  @relation(fields: [paymentId], references: [id])
+
+  @@index([paymentId])
+  @@index([status])
 }
 
 model SupportCase {

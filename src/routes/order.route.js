@@ -8,6 +8,7 @@ import {
   getOrderById,
   getSellingOrders,
   receiveOrderFromSeller,
+  returnOrderToSeller,
   shipOrderToAdmin,
   shipOrderToBuyer,
   startOrderInspection,
@@ -40,6 +41,7 @@ adminOrderRoute.post("/:orderId/receive", receiveOrderFromSeller);
 adminOrderRoute.post("/:orderId/inspection/start", startOrderInspection);
 adminOrderRoute.post("/:orderId/inspection/complete", completeInspection);
 adminOrderRoute.post("/:orderId/ship-to-buyer", shipOrderToBuyer);
+adminOrderRoute.post("/:orderId/return-to-seller", returnOrderToSeller);
 adminOrderRoute.get("/:orderId", getOrderById);
 
 export default app;

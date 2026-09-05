@@ -129,7 +129,7 @@ export const createStripeCheckoutSession = async ({
     const session = await stripe.checkout.sessions.create(
       {
         mode: "payment",
-
+        payment_method_types: ["card"],
         line_items: lineItems,
 
         metadata: {
@@ -179,5 +179,50 @@ export const expireStripeCheckoutSession = async (sessionId) => {
     throw normalizeStripeError(error);
   }
 };
+// Creates a partial or full Stripe Refund
+// against the original PaymentIntent.
+export const createStripeRefund = async ({
+  paymentIntentId,
+  amount,
+  checkoutId,
+  refundId,
+}) => {
+  const amountInMinorUnits = toMinorUnits(amount);
 
+  if (amountInMinorUnits <= 0) {
+    throw createHttpError(500, "Invalid refund amount.");
+  }
+
+  if (
+    typeof paymentIntentId !== "string" ||
+    !paymentIntentId.startsWith("pi_")
+  ) {
+    throw createHttpError(500, "Invalid Stripe PaymentIntent reference.");
+  }
+
+  try {
+    return await stripe.refunds.create(
+      {
+        payment_intent: paymentIntentId,
+
+        amount: amountInMinorUnits,
+
+        metadata: {
+          checkoutId: String(checkoutId),
+          refundId: String(refundId),
+        },
+      },
+
+      {
+        /*
+         * Retrying the same Checkout refund request
+         * must not create another Stripe Refund.
+         */
+        idempotencyKey: `checkout-refund:${checkoutId}:${amountInMinorUnits}`,
+      },
+    );
+  } catch (error) {
+    throw normalizeStripeError(error);
+  }
+};
 export default stripe;

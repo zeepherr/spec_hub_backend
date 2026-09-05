@@ -104,6 +104,19 @@ export const findOrdersByBuyer = async (buyerId, db = prisma) => {
             select: {
               status: true,
               paidAt: true,
+              refundedAmount: true,
+              refundedAt: true,
+            },
+          },
+
+          refund: {
+            select: {
+              id: true,
+              amount: true,
+              currency: true,
+              status: true,
+              processedAt: true,
+              failedAt: true,
             },
           },
         },
@@ -260,16 +273,41 @@ export const markListingSold = async (listingId, db = prisma) => {
   });
 };
 
-export const countIncompleteCheckoutOrders = async (
-  checkoutId,
-  db = prisma,
-) => {
-  return await db.order.count({
+// Finds the Checkout state needed to decide whether
+// the remaining Payment can be released.
+export const findCheckoutForSettlement = async (checkoutId, db = prisma) => {
+  return await db.checkout.findUnique({
     where: {
-      checkoutId,
+      id: checkoutId,
+    },
 
-      status: {
-        not: "COMPLETED",
+    select: {
+      id: true,
+      status: true,
+
+      orders: {
+        select: {
+          id: true,
+          status: true,
+        },
+      },
+
+      payment: {
+        select: {
+          id: true,
+          amount: true,
+          refundedAmount: true,
+          status: true,
+          releasedAt: true,
+        },
+      },
+
+      refund: {
+        select: {
+          id: true,
+          amount: true,
+          status: true,
+        },
       },
     },
   });
@@ -283,7 +321,10 @@ export const markCheckoutPaymentReleased = async (
   return await db.payment.updateMany({
     where: {
       checkoutId,
-      status: "PAID",
+
+      status: {
+        in: ["PAID", "PARTIALLY_REFUNDED"],
+      },
     },
 
     data: {
@@ -292,7 +333,6 @@ export const markCheckoutPaymentReleased = async (
     },
   });
 };
-
 export const findOrderById = async (orderId, db = prisma) => {
   return await db.order.findUnique({
     where: {
@@ -399,15 +439,36 @@ export const findOrderById = async (orderId, db = prisma) => {
             select: {
               status: true,
               paidAt: true,
+
+              refundedAmount: true,
               refundedAt: true,
+
               releasedAt: true,
+            },
+          },
+
+          refund: {
+            select: {
+              id: true,
+              amount: true,
+              currency: true,
+              status: true,
+              reason: true,
+
+              providerRef: true,
+
+              failureCode: true,
+              failureMessage: true,
+
+              createdAt: true,
+              processedAt: true,
+              failedAt: true,
             },
           },
         },
       },
-
-      // | Fetch both shipment types.
-      // | The controller decides what Buyer, Seller and Admin can see.
+      // Fetch all shipment directions.
+      // The controller decides what each role can see.
 
       shipments: {
         select: {
@@ -668,13 +729,38 @@ export const findOrdersForAdmin = async (statuses, db = prisma) => {
 
           payment: {
             select: {
+              id: true,
+              amount: true,
+              refundedAmount: true,
+
               status: true,
+
               paidAt: true,
+              refundedAt: true,
+              releasedAt: true,
+            },
+          },
+
+          refund: {
+            select: {
+              id: true,
+              amount: true,
+              currency: true,
+              status: true,
+              reason: true,
+
+              providerRef: true,
+
+              failureCode: true,
+              failureMessage: true,
+
+              createdAt: true,
+              processedAt: true,
+              failedAt: true,
             },
           },
         },
       },
-
       shipments: {
         select: {
           id: true,
@@ -878,6 +964,8 @@ export const findOrderForInspectionCompletion = async (
 
     select: {
       id: true,
+      listingId: true,
+      checkoutId: true,
       orderNumber: true,
       status: true,
 
@@ -1029,6 +1117,133 @@ export const createAdminToBuyerShipment = async (data, db = prisma) => {
       trackingNumber: data.trackingNumber,
       status: "SHIPPED",
       shippedAt: data.shippedAt,
+    },
+
+    select: {
+      id: true,
+      orderId: true,
+      shipmentType: true,
+      carrier: true,
+      trackingNumber: true,
+      status: true,
+      shippedAt: true,
+      deliveredAt: true,
+      createdAt: true,
+    },
+  });
+};
+
+export const markListingRejected = async (listingId, db = prisma) => {
+  return await db.listing.updateMany({
+    where: {
+      id: listingId,
+      status: "RESERVED",
+    },
+
+    data: {
+      status: "REJECTED",
+    },
+  });
+};
+
+// Finds a rejected Order before Admin returns
+// the product to the Seller.
+export const findOrderForReturnToSeller = async (orderId, db = prisma) => {
+  return await db.order.findUnique({
+    where: {
+      id: orderId,
+    },
+
+    select: {
+      id: true,
+      orderNumber: true,
+      sellerId: true,
+      status: true,
+
+      listing: {
+        select: {
+          id: true,
+          status: true,
+        },
+      },
+
+      inspection: {
+        select: {
+          id: true,
+          result: true,
+          completedAt: true,
+        },
+      },
+
+      seller: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          address: true,
+        },
+      },
+
+      shipments: {
+        where: {
+          shipmentType: "ADMIN_TO_SELLER",
+        },
+
+        select: {
+          id: true,
+          shipmentType: true,
+          carrier: true,
+          trackingNumber: true,
+          status: true,
+          shippedAt: true,
+          deliveredAt: true,
+          createdAt: true,
+        },
+
+        take: 1,
+      },
+    },
+  });
+};
+
+// Creates the Admin-to-Seller return shipment.
+export const createAdminToSellerShipment = async (data, db = prisma) => {
+  return await db.shipment.create({
+    data: {
+      orderId: data.orderId,
+
+      shipmentType: "ADMIN_TO_SELLER",
+
+      carrier: data.carrier,
+      trackingNumber: data.trackingNumber,
+
+      status: "SHIPPED",
+      shippedAt: data.shippedAt,
+    },
+
+    select: {
+      id: true,
+      orderId: true,
+      shipmentType: true,
+      carrier: true,
+      trackingNumber: true,
+      status: true,
+      shippedAt: true,
+      deliveredAt: true,
+      createdAt: true,
+    },
+  });
+};
+
+// Returns the current Admin-to-Seller shipment.
+export const findReturnShipmentByOrderId = async (orderId, db = prisma) => {
+  return await db.shipment.findUnique({
+    where: {
+      orderId_shipmentType: {
+        orderId,
+        shipmentType: "ADMIN_TO_SELLER",
+      },
     },
 
     select: {
