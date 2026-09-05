@@ -21,6 +21,7 @@ const toMinorUnits = (amount) => {
 export const createStripeCheckoutSession = async ({
   checkoutId,
   orders,
+  paymentCreatedAt,
   productCheckingFee,
   deliveryFee,
   grandTotal,
@@ -104,7 +105,25 @@ export const createStripeCheckoutSession = async ({
     throw error;
   }
 
-  const expiresAt = Math.floor(Date.now() / 1000) + 30 * 60;
+  const paymentCreatedAtMs =
+    paymentCreatedAt == null ? NaN : new Date(paymentCreatedAt).getTime();
+
+  if (!Number.isFinite(paymentCreatedAtMs)) {
+    throw createHttpError(500, "Invalid payment creation time.");
+  }
+
+  const expiresAt = Math.floor(paymentCreatedAtMs / 1000) + 60 * 60;
+
+  // Leave a small buffer above Stripe's 30-minute minimum.
+  const minimumExpiresAt = Math.floor(Date.now() / 1000) + 30 * 60 + 5;
+
+  if (expiresAt < minimumExpiresAt) {
+    throw createHttpError(
+      409,
+      "This payment attempt is too old. Please create a new checkout.",
+      { code: "PAYMENT_ATTEMPT_EXPIRED" },
+    );
+  }
 
   try {
     const session = await stripe.checkout.sessions.create(

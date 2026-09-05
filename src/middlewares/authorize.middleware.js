@@ -1,11 +1,14 @@
 import createHttpError from "http-errors";
+import { getUserBy } from "../services/auth.service.js";
 export const allowRoles = (...roles) => {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     if (!req.user) {
       return next(createHttpError(401, "Authentication Requires!"));
     }
-    if (!roles.includes(req.user.role)) {
-      return next(createHttpError(403, "Access Denined"));
+    if (req.user) {
+      const user = await getUserBy("id", req.user.id);
+      if (!roles.includes(user.role))
+        return next(createHttpError(403, "Access Denined"));
     }
     next();
   };

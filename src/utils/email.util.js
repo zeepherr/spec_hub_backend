@@ -2,19 +2,57 @@ import { resolveMx } from "node:dns/promises";
 import nodeMailer from "nodemailer";
 import { config } from "../configs/index.js";
 
-export const hashVailMailDomain = async (email) => {
-  const domain = email.split("@")[1];
+const INVALID_DOMAIN_ERRORS = new Set(["ENOTFOUND", "ENODATA"]);
+
+export const checkEmailDomain = async (email) => {
+  const domain = email.split("@").at(-1)?.trim().toLowerCase();
+
   if (!domain) {
-    return false;
+    return {
+      status: "invalid",
+      reason: "MISSING_DOMAIN",
+    };
   }
+
   try {
     const records = await resolveMx(domain);
-    return (
-      records.length > 0 &&
-      records.some((record) => record.exchange && record.exchange !== ".")
+
+    const hasMailServer = records.some(
+      (record) => record.exchange && record.exchange !== ".",
     );
-  } catch {
-    return false;
+
+    return {
+      status: hasMailServer ? "valid" : "invalid",
+
+      reason: hasMailServer ? null : "NO_MAIL_SERVER",
+    };
+  } catch (error) {
+    /*
+     * ENOTFOUND/ENODATA generally indicates that
+     * the domain or its MX record does not exist.
+     */
+    if (INVALID_DOMAIN_ERRORS.has(error.code)) {
+      return {
+        status: "invalid",
+        reason: "NO_MAIL_SERVER",
+      };
+    }
+
+    /*
+     * ETIMEOUT, ESERVFAIL, EREFUSED and other
+     * infrastructure errors do not prove that
+     * the email is invalid.
+     */
+    console.warn("Email domain lookup unavailable", {
+      domain,
+      code: error.code,
+      message: error.message,
+    });
+
+    return {
+      status: "unknown",
+      reason: "DNS_UNAVAILABLE",
+    };
   }
 };
 

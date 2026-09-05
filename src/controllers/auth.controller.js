@@ -17,18 +17,17 @@ import {
   updatePendingOtp,
 } from "../services/auth.service.js";
 import { getR2PublicUrl } from "../services/r2.storage.service.js";
-import { refreshCookieOptions } from "../utils/cookie.util.js";
-import { sendRegistrationOtp } from "../utils/email.util.js";
+import {
+  clearRefreshCookieOptions,
+  refreshCookieOptions,
+} from "../utils/cookie.util.js";
+import { checkEmailDomain, sendRegistrationOtp } from "../utils/email.util.js";
 import {
   createAccessToken,
   createRefreshToken,
   hashRefreshToken,
 } from "../utils/jwt.util.js";
-import {
-  generateOtp,
-  getOtpCooldownSeconds,
-  hashOtp,
-} from "../utils/otp.util.js";
+import { generateOtp, hashOtp } from "../utils/otp.util.js";
 import {
   googleLoginSchema,
   loginSchema,
@@ -40,8 +39,13 @@ import {
 export const register = async (req, res, next) => {
   const data = registerSchema.parse(req.body);
   const { firstName, lastName, email, password } = data;
-  // const isMail = await hashVailMailDomain(email);
-  // if (!isMail) return next(createHttpError(400, "Please enter a valid email."));
+  const domainCheck = await checkEmailDomain(email);
+
+  if (domainCheck.status === "invalid") {
+    return next(
+      createHttpError(400, "This email domain cannot receive email."),
+    );
+  }
 
   const haveUser = await getUserBy("email", email);
   if (haveUser)
@@ -147,11 +151,7 @@ export const logout = async (req, res, next) => {
     const tokenHash = await hashRefreshToken(refreshToken);
     await revokeSession(tokenHash);
   }
-  res.clearCookie("refreshToken", {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/api/v1/auth",
-  });
+  res.clearCookie("refreshToken", clearRefreshCookieOptions);
   res.status(200).json({
     message: "Logout Sccessfully",
   });
@@ -242,24 +242,19 @@ export const resendEmailOtp = async (req, res, next) => {
     );
   }
 
-  const retryAfterSecond = getOtpCooldownSeconds(pending.lastSentAt); // second between 60 and 1
-  if (retryAfterSecond > 0) {
-    const error = createHttpError(
-      429,
-      `Please wait ${retryAfterSecond} seconds to request another code.`,
-    );
-    ((error.code = "OTP_RESEND_COOLDOWN"),
-      (error.retryAfterSecond = retryAfterSecond));
-    return next(error);
-  }
-
   const otp = generateOtp(); //get new otp
   const otpHash = hashOtp(otp);
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000); //target 10 minutes
+  const updatedPending = await updatePendingOtp({
+    email,
+    otpHash,
+    expiresAt,
+  });
 
-  await updatePendingOtp({ email, otpHash, expiresAt });
   await sendRegistrationOtp(email, otp); //resend to user
-  const resendAvailableAt = new Date(Date.now() + 60 * 1000);
+  const resendAvailableAt = new Date(
+    updatedPending.lastSentAt.getTime() + 60_000,
+  );
   return res.status(200).json({
     success: true,
     code: "VERIFICATION_CODE_RESENT",
