@@ -488,10 +488,8 @@ export const executePendingRefund = async (refundId) => {
    * Stripe accepted the Refund but it has not
    * completed yet.
    */
-  if (stripeRefund.status === "pending") {
+  if (["PENDING", "FAILED"].includes(refund.status)) {
     await markRefundProcessing(refund.id, stripeRefund.id);
-
-    return await findRefundById(refund.id);
   }
 
   /*
@@ -614,6 +612,7 @@ export const handleStripeRefundEvent = async (stripeRefund) => {
 
   return refund;
 };
+
 export const retryRefund = async (req, res, next) => {
   try {
     const { refundId } = refundIdSchema.parse(req.params);

@@ -240,7 +240,7 @@ export const markRefundFailed = async (
       id: refundId,
 
       status: {
-        in: ["PENDING", "PROCESSING"],
+        in: ["PENDING", "PROCESSING", "FAILED"],
       },
 
       OR: [
