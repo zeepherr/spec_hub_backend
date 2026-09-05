@@ -14,6 +14,7 @@ import checkoutRoute from "./routes/checkout.route.js";
 import listingRoute from "./routes/listing.route.js";
 import orderRoute, { adminOrderRoute } from "./routes/order.route.js";
 import paymentRoute from "./routes/payment.route.js";
+import refundRoute from "./routes/refund.route.js";
 import profileRouter from "./routes/user.route.js";
 
 const app = express();
@@ -38,6 +39,7 @@ app.use("/api/checkouts", checkoutRoute);
 app.use("/api/orders", orderRoute);
 app.use("/api/admin/orders", adminOrderRoute);
 app.use("/api/payments", paymentRoute);
+app.use("/api/admin/refunds", refundRoute);
 app.use(notFound);
 app.use(errorHandler);
 export default app;

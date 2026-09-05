@@ -30,6 +30,7 @@ import {
   createCheckoutPaymentSchema,
   paymentSessionSchema,
 } from "../validations/payment.schema.js";
+import { handleStripeRefundEvent } from "./refund.controller.js";
 
 // Creates or reuses a Stripe Checkout Session.
 export const createCheckout = async (req, res, next) => {
@@ -405,6 +406,20 @@ export const stripeWebhook = async (req, res, next) => {
 
       await cancelCheckoutOrders(payment.checkoutId, tx);
     });
+
+    return res.status(200).json({
+      received: true,
+    });
+  }
+
+  const refundEventTypes = new Set([
+    "refund.created",
+    "refund.updated",
+    "refund.failed",
+  ]);
+
+  if (refundEventTypes.has(event.type)) {
+    await handleStripeRefundEvent(event.data.object);
 
     return res.status(200).json({
       received: true,

@@ -160,7 +160,10 @@ export const markRefundProcessing = async (
   return await db.refund.updateMany({
     where: {
       id: refundId,
-      status: "PENDING",
+
+      status: {
+        in: ["PENDING", "FAILED"],
+      },
 
       OR: [
         {

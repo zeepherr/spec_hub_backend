@@ -54,7 +54,10 @@ import {
   shipToSellerSchema,
 } from "../validations/order.schema.js";
 import { releaseCheckoutPaymentIfReady } from "./checkoutSettlement.controller.js";
-import { prepareAndExecuteCheckoutRefund } from "./refund.controller.js";
+import {
+  executePendingRefund,
+  prepareCheckoutRefund,
+} from "./refund.controller.js";
 
 // Creates a new order and reserves the listing for the buyer.
 export const createNewOrder = async (req, res, next) => {
@@ -862,18 +865,20 @@ export const completeInspection = async (req, res, next) => {
 
       const inspection = await findInspectionById(order.inspection.id, tx);
 
+      // This only creates the local PENDING refund.
+      // It does not contact Stripe.
+      const preparedRefund = await prepareCheckoutRefund(order.checkoutId, tx);
+
       return {
         id: order.id,
-
         orderNumber: order.orderNumber,
-
         checkoutId: order.checkoutId,
-
         status: nextStatus,
+
+        refundId: preparedRefund?.id ?? null,
 
         inspection: {
           ...inspection,
-
           verifiedScore:
             inspection.verifiedScore !== null
               ? Number(inspection.verifiedScore)
@@ -894,9 +899,17 @@ export const completeInspection = async (req, res, next) => {
      *
      * 3. Call Stripe outside Prisma transaction.
      */
-    const refund = await prepareAndExecuteCheckoutRefund(result.checkoutId);
+    let refund = null;
 
-    const { checkoutId: _checkoutId, ...orderData } = result;
+    if (result.refundId) {
+      refund = await executePendingRefund(result.refundId);
+    }
+
+    const {
+      checkoutId: _checkoutId,
+      refundId: _refundId,
+      ...orderData
+    } = result;
 
     return res.status(200).json({
       success: true,

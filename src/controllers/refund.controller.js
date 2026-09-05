@@ -14,8 +14,15 @@ import {
   updatePaymentAfterRefund,
 } from "../services/refund.service.js";
 import { toMinorUnits } from "../utils/order.helper.js";
+import { refundIdSchema } from "../validations/refund.schema.js";
 import { releaseCheckoutPaymentIfReady } from "./checkoutSettlement.controller.js";
 
+const RETRYABLE_REFUND_FAILURE_CODES = new Set([
+  "PAYMENT_SERVICE_BUSY",
+  "PAYMENT_SERVICE_UNAVAILABLE",
+  "PAYMENT_CONFIGURATION_ERROR",
+  "PAYMENT_PROVIDER_ERROR",
+]);
 // Calculates the Checkout-level refund.
 //
 // Business rules:
@@ -34,10 +41,16 @@ const calculateCheckoutRefund = (checkout) => {
    *
    * NEEDS_REVIEW is intentionally not final.
    */
-  const allOrdersFinalized = checkout.orders.every((order) =>
-    ["VERIFIED", "REJECTED"].includes(order.status),
-  );
+  const inspectionFinalizedStatuses = new Set([
+    "VERIFIED",
+    "REJECTED",
+    "SHIPPING_TO_BUYER",
+    "COMPLETED",
+  ]);
 
+  const allOrdersFinalized = checkout.orders.every((order) =>
+    inspectionFinalizedStatuses.has(order.status),
+  );
   if (!allOrdersFinalized) {
     return {
       ready: false,
@@ -92,8 +105,8 @@ const calculateCheckoutRefund = (checkout) => {
 
 // Creates the local PENDING Refund record only when
 // every Order in the Checkout has been finalized.
-const prepareCheckoutRefund = async (checkoutId) => {
-  const checkout = await findCheckoutForRefund(checkoutId);
+export const prepareCheckoutRefund = async (checkoutId, db) => {
+  const checkout = await findCheckoutForRefund(checkoutId, db);
 
   if (!checkout) {
     throw createHttpError(
@@ -104,28 +117,22 @@ const prepareCheckoutRefund = async (checkoutId) => {
 
   const calculation = calculateCheckoutRefund(checkout);
 
-  /*
-   * Another Order still needs inspection.
-   */
+  // Some orders still have unfinished inspections.
   if (!calculation.ready) {
     return null;
   }
 
-  /*
-   * All Orders passed inspection.
-   */
+  // Every product passed inspection.
   if (!calculation.refundable) {
     return null;
   }
 
-  /*
-   * Existing Refund wins.
-   */
+  // Application-level idempotency.
   if (checkout.refund) {
     return checkout.refund;
   }
 
-  const existingRefund = await findRefundByCheckoutId(checkout.id);
+  const existingRefund = await findRefundByCheckoutId(checkout.id, db);
 
   if (existingRefund) {
     return existingRefund;
@@ -138,15 +145,11 @@ const prepareCheckoutRefund = async (checkoutId) => {
     );
   }
 
-  /*
-   * Refund has not started yet.
-   */
   if (checkout.payment.status !== "PAID") {
     throw createHttpError(409, "This Payment is not eligible for Refund.");
   }
 
   const refundAmountInMinorUnits = toMinorUnits(calculation.amount);
-
   const paymentAmountInMinorUnits = toMinorUnits(checkout.payment.amount);
 
   if (
@@ -157,29 +160,22 @@ const prepareCheckoutRefund = async (checkoutId) => {
   }
 
   try {
-    return await createPendingRefund({
-      checkoutId: checkout.id,
-
-      paymentId: checkout.payment.id,
-
-      amount: calculation.amount,
-
-      currency: checkout.currency,
-
-      reason: calculation.allRejected
-        ? "All products failed inspection."
-        : "One or more products failed inspection.",
-    });
+    return await createPendingRefund(
+      {
+        checkoutId: checkout.id,
+        paymentId: checkout.payment.id,
+        amount: calculation.amount,
+        currency: checkout.currency,
+        reason: calculation.allRejected
+          ? "All products failed inspection."
+          : "One or more products failed inspection.",
+      },
+      db,
+    );
   } catch (error) {
-    /*
-     * Two Admin requests may finish different
-     * inspections almost simultaneously.
-     *
-     * Database UNIQUE constraints protect
-     * against duplicate Refund records.
-     */
+    // Another concurrent inspection may have created it.
     if (error?.code === "P2002") {
-      const refund = await findRefundByCheckoutId(checkout.id);
+      const refund = await findRefundByCheckoutId(checkout.id, db);
 
       if (refund) {
         return refund;
@@ -189,7 +185,6 @@ const prepareCheckoutRefund = async (checkoutId) => {
     throw error;
   }
 };
-
 // Finalizes a Stripe-confirmed successful Refund
 // and updates Payment atomically.
 const finalizeSuccessfulRefund = async ({ refundId, providerRef }) => {
@@ -325,7 +320,7 @@ const finalizeSuccessfulRefund = async ({ refundId, providerRef }) => {
 };
 
 // Calls Stripe outside any Prisma transaction.
-const executePendingRefund = async (refundId) => {
+export const executePendingRefund = async (refundId) => {
   const refund = await findRefundById(refundId);
 
   if (!refund) {
@@ -337,7 +332,12 @@ const executePendingRefund = async (refundId) => {
    *
    * FAILED will later have an explicit retry flow.
    */
-  if (refund.status !== "PENDING") {
+  const canRetryFailedRefund =
+    refund.status === "FAILED" &&
+    !refund.providerRef &&
+    RETRYABLE_REFUND_FAILURE_CODES.has(refund.failureCode);
+
+  if (refund.status !== "PENDING" && !canRetryFailedRefund) {
     return refund;
   }
 
@@ -613,4 +613,60 @@ export const handleStripeRefundEvent = async (stripeRefund) => {
   }
 
   return refund;
+};
+export const retryRefund = async (req, res, next) => {
+  try {
+    const { refundId } = refundIdSchema.parse(req.params);
+
+    const refund = await findRefundById(refundId);
+
+    if (!refund) {
+      return next(createHttpError(404, "Refund not found."));
+    }
+
+    if (refund.status === "SUCCEEDED") {
+      return res.status(200).json({
+        success: true,
+        message: "Refund has already succeeded.",
+        data: refund,
+      });
+    }
+
+    if (refund.status === "PROCESSING") {
+      return res.status(200).json({
+        success: true,
+        message: "Refund is currently processing.",
+        data: refund,
+      });
+    }
+
+    const retryable =
+      refund.status === "PENDING" ||
+      (refund.status === "FAILED" &&
+        !refund.providerRef &&
+        RETRYABLE_REFUND_FAILURE_CODES.has(refund.failureCode));
+
+    if (!retryable) {
+      return next(
+        createHttpError(409, "This Refund cannot be retried automatically."),
+      );
+    }
+
+    const updatedRefund = await executePendingRefund(refund.id);
+
+    return res.status(200).json({
+      success: true,
+      message: "Refund retry processed.",
+      data: {
+        id: updatedRefund.id,
+        amount: Number(updatedRefund.amount),
+        currency: updatedRefund.currency,
+        status: updatedRefund.status,
+        failureCode: updatedRefund.failureCode ?? null,
+        failureMessage: updatedRefund.failureMessage ?? null,
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
 };
