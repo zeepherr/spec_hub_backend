@@ -321,11 +321,6 @@ export const executePendingRefund = async (refundId) => {
   }
 
   /*
-   * Do not automatically execute again.
-   *
-   * FAILED will later have an explicit retry flow.
-   */
-  /*
    * Only a newly prepared PENDING Refund may call Stripe.
    *
    * Other states must not automatically create another Refund.
