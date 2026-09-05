@@ -55,10 +55,15 @@ export const createCheckout = async (req, res, next) => {
       createHttpError(409, "This checkout is no longer awaiting payment."),
     );
   }
+
+  const checkoutCreatedAt =
+    checkout.createdAt == null ? NaN : new Date(checkout.createdAt).getTime();
+
+  if (!Number.isFinite(checkoutCreatedAt)) {
+    return next(createHttpError(500, "Invalid checkout creation time."));
+  }
+
   const reservationDurationMs = config.checkout_reservation_minutes * 60 * 1000;
-
-  const checkoutCreatedAt = new Date(checkout.createdAt).getTime();
-
   const checkoutExpiresAt = checkoutCreatedAt + reservationDurationMs;
 
   if (Date.now() >= checkoutExpiresAt) {
@@ -196,7 +201,7 @@ export const createCheckout = async (req, res, next) => {
   const session = await createStripeCheckoutSession({
     checkoutId,
     orders: checkout.orders,
-
+    paymentCreatedAt: payment.createdAt,
     productCheckingFee: checkout.productCheckingFee,
     grandTotal: checkout.grandTotal,
     deliveryFee: checkout.deliveryFee,

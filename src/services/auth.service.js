@@ -1,4 +1,8 @@
+import createHttpError from "http-errors";
 import { prisma } from "../lib/prisma.js";
+import { getOtpCooldownSeconds } from "../utils/otp.util.js";
+
+const OTP_COOLDOWN_MS = 60_000;
 
 export const getUserBy = async (column, value) => {
   return await prisma.user.findUnique({
@@ -11,6 +15,8 @@ export const getUserBy = async (column, value) => {
       firstName: true,
       lastName: true,
       isActive: true,
+      profileImageKey: true,
+      phone: true,
     },
   });
 };
@@ -34,30 +40,24 @@ export const setUserGoogleSub = async (userId, googleSub) => {
   });
 };
 
-export const savePendingRegistration = async (data) => {
-  //using upsert if existing user -> update data , if not --> create new
-  return prisma.pendingRegistration.upsert({
-    where: { email: data.email },
-    update: {
-      firstName: data.firstName,
-      lastName: data.lastName,
-      passwordHash: data.passwordHash,
-      otpHash: data.otpHash,
-      expiresAt: data.expiresAt,
-      attempts: 0,
-      lastSentAt: new Date(),
-    },
-    create: {
-      email: data.email,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      passwordHash: data.passwordHash,
-      otpHash: data.otpHash,
-      expiresAt: data.expiresAt,
-      attempts: 0,
-      lastSentAt: new Date(),
-    },
-  });
+export const savePendingRegistration = async ({ email, ...data }) => {
+  try {
+    return await prisma.pendingRegistration.create({
+      data: {
+        email,
+        ...data,
+        attempts: 0,
+        lastSentAt: new Date(),
+      },
+    });
+  } catch (error) {
+    // Another pending registration already uses this email.
+    if (error.code !== "P2002") {
+      throw error;
+    }
+
+    return updatePendingWithCooldown(email, data);
+  }
 };
 
 export const findPendingUser = async (UserEmail) => {
@@ -88,23 +88,26 @@ export const createUserFromPending = async (pending) => {
       await deletePending(pending.id);
       throw createHttpError(409, "This email is already registered!");
     }
-    const newUser = await createUser({
-      data: {
-        email: pending.email,
-        firstName: pending.firstName,
-        lastName: pending.lastName,
-        passwordHash: pending.passwordHash,
-        isVerified: true,
+    const newUser = await createUser(
+      {
+        data: {
+          email: pending.email,
+          firstName: pending.firstName,
+          lastName: pending.lastName,
+          passwordHash: pending.passwordHash,
+          isVerified: true,
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          isVerified: true,
+        },
       },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        isVerified: true,
-      },
-    });
+      tx,
+    );
     await deletePending(pending.id);
     return newUser;
   });
@@ -124,15 +127,10 @@ export const getPendingByEmail = async (pendingEmail) => {
   });
 };
 
-export const updatePendingOtp = async (data) => {
-  await prisma.pendingRegistration.update({
-    where: { email: data.email },
-    data: {
-      otpHash: data.otpHash,
-      expiresAt: data.expiresAt,
-      attempts: 0, //restart attempts if new otp
-      lastSentAt: new Date(),
-    },
+export const updatePendingOtp = async ({ email, otpHash, expiresAt }) => {
+  return updatePendingWithCooldown(email, {
+    otpHash,
+    expiresAt,
   });
 };
 
@@ -164,6 +162,55 @@ export const revokeSession = async (tokenHash) => {
   });
 };
 
-export const createUser = async (userDate) => {
-  return await prisma.user.create({ data: userDate.data });
+export const createUser = async (userDate, db = prisma) => {
+  return await db.user.create({ data: userDate.data });
+};
+
+const updatePendingWithCooldown = async (email, data) => {
+  const now = new Date();
+
+  const [updated] = await prisma.pendingRegistration.updateManyAndReturn({
+    where: {
+      email,
+      lastSentAt: {
+        lte: new Date(now.getTime() - OTP_COOLDOWN_MS),
+      },
+    },
+    data: {
+      ...data,
+      attempts: 0,
+      lastSentAt: now,
+    },
+  });
+
+  if (updated) {
+    return updated;
+  }
+
+  const pending = await prisma.pendingRegistration.findUnique({
+    where: { email },
+    select: { lastSentAt: true },
+  });
+
+  if (!pending) {
+    throw createHttpError(
+      404,
+      "Registration does not exist. Please register again.",
+      { code: "PENDING_REGISTRATION_NOT_FOUND" },
+    );
+  }
+
+  const retryAfterSeconds = Math.max(
+    1,
+    getOtpCooldownSeconds(pending.lastSentAt),
+  );
+
+  throw createHttpError(
+    429,
+    `Please wait ${retryAfterSeconds} seconds before requesting another code.`,
+    {
+      code: "OTP_RESEND_COOLDOWN",
+      retryAfterSeconds,
+    },
+  );
 };
