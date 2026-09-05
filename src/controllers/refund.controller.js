@@ -14,15 +14,8 @@ import {
   updatePaymentAfterRefund,
 } from "../services/refund.service.js";
 import { toMinorUnits } from "../utils/order.helper.js";
-import { refundIdSchema } from "../validations/refund.schema.js";
 import { releaseCheckoutPaymentIfReady } from "./checkoutSettlement.controller.js";
 
-const RETRYABLE_REFUND_FAILURE_CODES = new Set([
-  "PAYMENT_SERVICE_BUSY",
-  "PAYMENT_SERVICE_UNAVAILABLE",
-  "PAYMENT_CONFIGURATION_ERROR",
-  "PAYMENT_PROVIDER_ERROR",
-]);
 // Calculates the Checkout-level refund.
 //
 // Business rules:
@@ -332,12 +325,12 @@ export const executePendingRefund = async (refundId) => {
    *
    * FAILED will later have an explicit retry flow.
    */
-  const canRetryFailedRefund =
-    refund.status === "FAILED" &&
-    !refund.providerRef &&
-    RETRYABLE_REFUND_FAILURE_CODES.has(refund.failureCode);
-
-  if (refund.status !== "PENDING" && !canRetryFailedRefund) {
+  /*
+   * Only a newly prepared PENDING Refund may call Stripe.
+   *
+   * Other states must not automatically create another Refund.
+   */
+  if (refund.status !== "PENDING") {
     return refund;
   }
 
@@ -393,7 +386,7 @@ export const executePendingRefund = async (refundId) => {
      * Do not pretend the inspection failed because
      * Stripe had a refund/provider error.
      *
-     * Store FAILED so Admin can retry later.
+     * Store the failure for diagnosis and webhook reconciliation.
      */
     await markRefundFailed(refund.id, {
       providerRef: null,
@@ -488,10 +481,11 @@ export const executePendingRefund = async (refundId) => {
    * Stripe accepted the Refund but it has not
    * completed yet.
    */
-  if (["PENDING", "FAILED"].includes(refund.status)) {
+  if (stripeRefund.status === "pending") {
     await markRefundProcessing(refund.id, stripeRefund.id);
-  }
 
+    return await findRefundById(refund.id);
+  }
   /*
    * Card-only MVP should normally not hit
    * requires_action or canceled.
@@ -611,61 +605,4 @@ export const handleStripeRefundEvent = async (stripeRefund) => {
   }
 
   return refund;
-};
-
-export const retryRefund = async (req, res, next) => {
-  try {
-    const { refundId } = refundIdSchema.parse(req.params);
-
-    const refund = await findRefundById(refundId);
-
-    if (!refund) {
-      return next(createHttpError(404, "Refund not found."));
-    }
-
-    if (refund.status === "SUCCEEDED") {
-      return res.status(200).json({
-        success: true,
-        message: "Refund has already succeeded.",
-        data: refund,
-      });
-    }
-
-    if (refund.status === "PROCESSING") {
-      return res.status(200).json({
-        success: true,
-        message: "Refund is currently processing.",
-        data: refund,
-      });
-    }
-
-    const retryable =
-      refund.status === "PENDING" ||
-      (refund.status === "FAILED" &&
-        !refund.providerRef &&
-        RETRYABLE_REFUND_FAILURE_CODES.has(refund.failureCode));
-
-    if (!retryable) {
-      return next(
-        createHttpError(409, "This Refund cannot be retried automatically."),
-      );
-    }
-
-    const updatedRefund = await executePendingRefund(refund.id);
-
-    return res.status(200).json({
-      success: true,
-      message: "Refund retry processed.",
-      data: {
-        id: updatedRefund.id,
-        amount: Number(updatedRefund.amount),
-        currency: updatedRefund.currency,
-        status: updatedRefund.status,
-        failureCode: updatedRefund.failureCode ?? null,
-        failureMessage: updatedRefund.failureMessage ?? null,
-      },
-    });
-  } catch (error) {
-    return next(error);
-  }
 };

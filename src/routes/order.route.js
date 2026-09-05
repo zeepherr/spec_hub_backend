@@ -13,7 +13,6 @@ import {
   shipOrderToBuyer,
   startOrderInspection,
 } from "../controllers/order.controller.js";
-import { retryRefund } from "../controllers/refund.controller.js";
 import { authenticate } from "../middlewares/authenticate.middleware.js";
 import { allowRoles } from "./../middlewares/authorize.middleware.js";
 
@@ -43,7 +42,6 @@ adminOrderRoute.post("/:orderId/inspection/start", startOrderInspection);
 adminOrderRoute.post("/:orderId/inspection/complete", completeInspection);
 adminOrderRoute.post("/:orderId/ship-to-buyer", shipOrderToBuyer);
 adminOrderRoute.post("/:orderId/return-to-seller", returnOrderToSeller);
-adminOrderRoute.post("/refunds/:refundId/retry", retryRefund);
 
 adminOrderRoute.get("/:orderId", getOrderById);
 
