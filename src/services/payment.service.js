@@ -14,7 +14,6 @@ export const findCheckoutForPayment = async (checkoutId, db = prisma) => {
       subtotal: true,
       productCheckingFee: true,
       deliveryFee: true,
-      setupServiceRequested: true,
       grandTotal: true,
       currency: true,
       createdAt: true,
@@ -236,7 +235,6 @@ export const findPaymentStatusByProviderRef = async (
           deliveryFee: true,
           setupServiceRequested: true,
           grandTotal: true,
-          setupServiceRequested: true,
           currency: true,
 
           orders: {

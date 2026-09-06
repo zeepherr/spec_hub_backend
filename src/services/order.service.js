@@ -398,6 +398,19 @@ export const findOrderById = async (orderId, db = prisma) => {
               },
             },
           },
+          checkout: {
+            select: {
+              id: true,
+              status: true,
+              setupServiceRequested: true,
+
+              shippingRecipientName: true,
+              shippingPhone: true,
+              shippingAddress: true,
+
+              // Existing payment/refund code
+            },
+          },
         },
       },
 

@@ -292,7 +292,7 @@ export const getOrderById = async (req, res, next) => {
             id: checkout.id,
 
             status: checkout.status,
-
+            setupServiceRequested: checkout.setupServiceRequested,
             payment: checkout.payment
               ? {
                   ...checkout.payment,
