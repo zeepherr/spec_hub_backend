@@ -24,6 +24,7 @@ export const createStripeCheckoutSession = async ({
   paymentCreatedAt,
   productCheckingFee,
   deliveryFee,
+  setupServiceFee,
   grandTotal,
   currency,
 }) => {
@@ -77,6 +78,21 @@ export const createStripeCheckoutSession = async ({
         },
 
         unit_amount: toMinorUnits(deliveryFee),
+      },
+
+      quantity: 1,
+    });
+  }
+  if (Number(setupServiceFee) > 0) {
+    feeLineItems.push({
+      price_data: {
+        currency: stripeCurrency,
+
+        product_data: {
+          name: "Setup service",
+        },
+
+        unit_amount: toMinorUnits(setupServiceFee),
       },
 
       quantity: 1,

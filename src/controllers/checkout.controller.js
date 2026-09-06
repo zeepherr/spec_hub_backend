@@ -48,7 +48,9 @@ const getCheckoutListingError = (listings, listingIds, buyerId) => {
 // Creates one checkout containing one or more separate orders.
 export const quoteCheckout = async (req, res, next) => {
   try {
-    const { listingIds } = checkoutQuoteSchema.parse(req.body);
+    const { listingIds, setupServiceRequested } = checkoutQuoteSchema.parse(
+      req.body,
+    );
 
     const buyerId = req.user.id;
 
@@ -60,7 +62,7 @@ export const quoteCheckout = async (req, res, next) => {
       return next(listingError);
     }
 
-    const pricing = calculateCheckoutPricing(listings);
+    const pricing = calculateCheckoutPricing(listings, setupServiceRequested);
 
     return res.status(200).json({
       success: true,
@@ -74,9 +76,8 @@ export const quoteCheckout = async (req, res, next) => {
 
 export const createCheckout = async (req, res, next) => {
   try {
-    const { listingIds, shippingAddress } = createCheckoutSchema.parse(
-      req.body,
-    );
+    const { listingIds, shippingAddress, setupServiceRequested } =
+      createCheckoutSchema.parse(req.body);
 
     const buyerId = req.user.id;
 
@@ -112,11 +113,15 @@ export const createCheckout = async (req, res, next) => {
        */
       const lockedListings = await findListingsForCheckout(listingIds, tx);
 
-      const pricing = calculateCheckoutPricing(lockedListings);
+      const pricing = calculateCheckoutPricing(
+        lockedListings,
+        setupServiceRequested,
+      );
 
       const checkout = await createCheckoutRecord(
         {
           buyerId,
+          setupServiceRequested,
           shippingAddress,
           pricing,
         },

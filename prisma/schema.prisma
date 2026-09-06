@@ -396,6 +396,7 @@ model Checkout {
   subtotal              Decimal        @default(0) @db.Decimal(12, 2)
   productCheckingFee    Decimal        @default(0) @db.Decimal(12, 2)
   deliveryFee           Decimal        @default(0) @db.Decimal(12, 2)
+  setupServiceRequested Boolean        @default(false)
   grandTotal            Decimal        @default(0) @db.Decimal(12, 2)
   currency              String         @default("THB")
   shippingRecipientName String?

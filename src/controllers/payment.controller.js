@@ -25,6 +25,7 @@ import {
   updatePaymentProviderRef,
 } from "../services/payment.service.js";
 
+import { CHECKOUT_FEES } from "../configs/checkoutFee.config.js";
 import { toMinorUnits } from "../utils/order.helper.js";
 import {
   createCheckoutPaymentSchema,
@@ -101,11 +102,19 @@ export const createCheckout = async (req, res, next) => {
   const checkingFeeInMinorUnits = toMinorUnits(checkout.productCheckingFee);
 
   const deliveryFeeInMinorUnits = toMinorUnits(checkout.deliveryFee);
+  const setupServiceFee = checkout.setupServiceRequested
+    ? CHECKOUT_FEES.SETUP_SERVICE_PER_CHECKOUT
+    : "0.00";
+
+  const setupServiceFeeInMinorUnits = toMinorUnits(setupServiceFee);
 
   const grandTotalInMinorUnits = toMinorUnits(checkout.grandTotal);
 
   const calculatedGrandTotal =
-    subtotalInMinorUnits + checkingFeeInMinorUnits + deliveryFeeInMinorUnits;
+    subtotalInMinorUnits +
+    checkingFeeInMinorUnits +
+    deliveryFeeInMinorUnits +
+    setupServiceFeeInMinorUnits;
 
   if (
     grandTotalInMinorUnits <= 0 ||
@@ -204,6 +213,7 @@ export const createCheckout = async (req, res, next) => {
     paymentCreatedAt: payment.createdAt,
     productCheckingFee: checkout.productCheckingFee,
     grandTotal: checkout.grandTotal,
+    setupServiceFee,
     deliveryFee: checkout.deliveryFee,
     currency: checkout.currency,
   });
@@ -464,6 +474,12 @@ export const getPaymentStatus = async (req, res, next) => {
         productCheckingFee: payment.checkout.productCheckingFee,
 
         deliveryFee: payment.checkout.deliveryFee,
+
+        setupServiceRequested: payment.checkout.setupServiceRequested,
+
+        setupServiceFee: payment.checkout.setupServiceRequested
+          ? Number(CHECKOUT_FEES.SETUP_SERVICE_PER_CHECKOUT)
+          : 0,
 
         grandTotal: payment.checkout.grandTotal,
       },
