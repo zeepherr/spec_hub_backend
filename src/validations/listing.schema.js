@@ -57,3 +57,11 @@ export const updateListingSchema = z.object({
 export const listingCategoryIdSchema = z.object({
   categoryId: z.coerce.number().int().positive(),
 });
+
+export const publicListingSearchSchema = z.object({
+  search: z
+    .string()
+    .trim()
+    .max(100, "Search must not exceed 100 characters.")
+    .optional(),
+});

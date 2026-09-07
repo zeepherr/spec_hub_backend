@@ -197,7 +197,9 @@ export const analyzeProductCondition = async ({
         parts: [
           {
             text: `
-Analyze the condition of this second-hand IT product.
+Analyze only the physical and seller-reported functional condition of this second-hand IT product.
+
+This is a condition assessment, not an authenticity check, release-date check, software-version validation, ownership check, or forensic inspection.
 
 Product information:
 
@@ -243,11 +245,27 @@ IMPORTANT RULES:
 - Do not invent damage that cannot be observed or reported.
 - Do not assume functionality only from appearance.
 - Seller answers may provide functional information that images cannot prove.
-- If evidence is uncertain, score conservatively.
+- If evidence is uncertain, state the limitation in the summary. Do not subtract points solely because information is unknown or uncertain.
 - Cosmetic appearance alone must not prove internal functionality.
 - Return JSON only.
 - No markdown.
 - No code fences.
+
+EVIDENCE AND SCOPE RULES:
+
+- Evaluate only the product's physical condition and seller-reported functional condition.
+- Do not evaluate whether an operating-system, firmware, software, driver, or application version is real, current, released, or possible.
+- Software information visible in an image may be newer than your knowledge.
+- Never reduce the score because a software version appears unfamiliar or newer than expected.
+- Never claim that a product is counterfeit, fake, replica, stolen, modified, or inauthentic from images or software-version information.
+- Product authenticity requires separate expert or manufacturer verification and is outside this analysis.
+- Do not treat missing, unknown, or unverifiable information as damage.
+- Uncertainty alone must not reduce the condition score.
+- Only subtract points for damage or problems that are clearly visible in the images or explicitly reported by the seller.
+- If a seller answer is unrelated to the product category, ignore that answer when calculating the score.
+- Do not interpret unrelated or contradictory answers as evidence that the product is defective or counterfeit.
+- When evidence conflicts, mention the limitation neutrally in the summary without inventing a conclusion.
+- The summary must describe condition evidence only. It must not contain unsupported authenticity or release-date claims.
             `,
           },
 

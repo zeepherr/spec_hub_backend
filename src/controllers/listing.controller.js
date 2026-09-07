@@ -19,6 +19,7 @@ import {
   createListingSchema,
   listingCategoryIdSchema,
   listingIdSchema,
+  publicListingSearchSchema,
   updateListingSchema,
 } from "../validations/listing.schema.js";
 
@@ -240,7 +241,9 @@ export const deleteSellerListing = async (req, res, next) => {
 };
 
 export const getAllActiveListings = async (req, res, next) => {
-  const listings = await findAllActiveListings();
+  const { search } = publicListingSearchSchema.parse(req.query);
+
+  const listings = await findAllActiveListings(search);
 
   return res.status(200).json({
     success: true,
