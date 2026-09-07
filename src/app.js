@@ -14,6 +14,9 @@ import checkoutRoute from "./routes/checkout.route.js";
 import listingRoute from "./routes/listing.route.js";
 import orderRoute, { adminOrderRoute } from "./routes/order.route.js";
 import paymentRoute from "./routes/payment.route.js";
+import supportCaseRoute, {
+  adminSupportCaseRoute,
+} from "./routes/supportCase.route.js";
 import profileRouter from "./routes/user.route.js";
 
 const app = express();
@@ -37,6 +40,8 @@ app.use("/api/cart", cartItemRoute);
 app.use("/api/checkouts", checkoutRoute);
 app.use("/api/orders", orderRoute);
 app.use("/api/admin/orders", adminOrderRoute);
+app.use("/api/support-cases", supportCaseRoute);
+app.use("/api/admin/support-cases", adminSupportCaseRoute);
 app.use("/api/payments", paymentRoute);
 app.use(notFound);
 app.use(errorHandler);
