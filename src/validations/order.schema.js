@@ -120,3 +120,19 @@ export const shipToBuyerSchema = z.object({
   params: orderIdSchema,
   body: shippingDetailsSchema,
 });
+
+export const shipToSellerSchema = z.object({
+  params: z.object({
+    orderId: z.coerce.number().int().positive(),
+  }),
+
+  body: z.object({
+    carrier: z.string().trim().min(2, "Carrier is required.").max(100),
+
+    trackingNumber: z
+      .string()
+      .trim()
+      .min(3, "Tracking number is required.")
+      .max(150),
+  }),
+});

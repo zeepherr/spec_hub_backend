@@ -28,18 +28,18 @@ export const checkoutListingIdsSchema = z
       });
     }
   });
-// Validates one or more listings selected by the buyer for checkout.
+
+const setupServiceRequestedSchema = z.boolean().optional().default(false);
+
+// Creates the final Checkout.
 export const createCheckoutSchema = z.object({
-  // listingIds: z
-  //   .array(z.uuid())
-  //   .min(1, "At least one listing is required.")
-  //   .refine((listingIds) => new Set(listingIds).size === listingIds.length, {
-  //     message: "Duplicate listings are not allowed.",
-  //   }),
   listingIds: checkoutListingIdsSchema,
+  setupServiceRequested: setupServiceRequestedSchema,
   shippingAddress: shippingAddressSchema,
 });
 
+// Calculates pricing without creating a Checkout.
 export const checkoutQuoteSchema = z.object({
   listingIds: checkoutListingIdsSchema,
+  setupServiceRequested: setupServiceRequestedSchema,
 });

@@ -21,17 +21,18 @@ import {
   markPaymentPaid,
   releaseCheckoutListings,
   runPaymentTransaction,
+  updatePaymentIntentRef,
   updatePaymentProviderRef,
 } from "../services/payment.service.js";
 
+import { CHECKOUT_FEES } from "../configs/checkoutFee.config.js";
+import { toMinorUnits } from "../utils/order.helper.js";
 import {
   createCheckoutPaymentSchema,
   paymentSessionSchema,
 } from "../validations/payment.schema.js";
+import { handleStripeRefundEvent } from "./refund.controller.js";
 
-const toMinorUnits = (amount) => {
-  return Math.round(Number(amount) * 100);
-};
 // Creates or reuses a Stripe Checkout Session.
 export const createCheckout = async (req, res, next) => {
   const { checkoutId } = createCheckoutPaymentSchema.parse(req.body);
@@ -101,11 +102,19 @@ export const createCheckout = async (req, res, next) => {
   const checkingFeeInMinorUnits = toMinorUnits(checkout.productCheckingFee);
 
   const deliveryFeeInMinorUnits = toMinorUnits(checkout.deliveryFee);
+  const setupServiceFee = checkout.setupServiceRequested
+    ? CHECKOUT_FEES.SETUP_SERVICE_PER_CHECKOUT
+    : "0.00";
+
+  const setupServiceFeeInMinorUnits = toMinorUnits(setupServiceFee);
 
   const grandTotalInMinorUnits = toMinorUnits(checkout.grandTotal);
 
   const calculatedGrandTotal =
-    subtotalInMinorUnits + checkingFeeInMinorUnits + deliveryFeeInMinorUnits;
+    subtotalInMinorUnits +
+    checkingFeeInMinorUnits +
+    deliveryFeeInMinorUnits +
+    setupServiceFeeInMinorUnits;
 
   if (
     grandTotalInMinorUnits <= 0 ||
@@ -204,6 +213,7 @@ export const createCheckout = async (req, res, next) => {
     paymentCreatedAt: payment.createdAt,
     productCheckingFee: checkout.productCheckingFee,
     grandTotal: checkout.grandTotal,
+    setupServiceFee,
     deliveryFee: checkout.deliveryFee,
     currency: checkout.currency,
   });
@@ -265,8 +275,43 @@ export const stripeWebhook = async (req, res, next) => {
 
     const checkoutId = Number(session.metadata?.checkoutId);
 
-    if (checkoutId !== payment.checkoutId) {
+    if (!Number.isInteger(checkoutId) || checkoutId !== payment.checkoutId) {
       return next(createHttpError(400, "Invalid Stripe checkout metadata."));
+    }
+
+    /*
+     * Stripe Checkout Session owns the PaymentIntent
+     * used for the actual payment.
+     *
+     * Refunds will later target this pi_... reference,
+     * not the cs_... Checkout Session ID.
+     */
+    const paymentIntentRef =
+      typeof session.payment_intent === "string"
+        ? session.payment_intent
+        : session.payment_intent?.id;
+
+    if (
+      typeof paymentIntentRef !== "string" ||
+      !paymentIntentRef.startsWith("pi_")
+    ) {
+      return next(createHttpError(400, "Stripe PaymentIntent was not found."));
+    }
+
+    /*
+     * A stored PaymentIntent must never silently
+     * change to another Stripe PaymentIntent.
+     */
+    if (
+      payment.paymentIntentRef &&
+      payment.paymentIntentRef !== paymentIntentRef
+    ) {
+      return next(
+        createHttpError(
+          400,
+          "Stripe PaymentIntent does not match the stored Payment.",
+        ),
+      );
     }
 
     const expectedPaymentAmount = toMinorUnits(payment.amount);
@@ -293,15 +338,53 @@ export const stripeWebhook = async (req, res, next) => {
     }
 
     await runPaymentTransaction(async (tx) => {
+      /*
+       * Save pi_... first.
+       *
+       * This also runs safely when Stripe retries
+       * the same webhook.
+       */
+      const paymentIntentUpdate = await updatePaymentIntentRef(
+        payment.id,
+        paymentIntentRef,
+        tx,
+      );
+
+      if (paymentIntentUpdate.count !== 1) {
+        throw createHttpError(
+          409,
+          "The Stripe PaymentIntent has already changed.",
+        );
+      }
+
+      /*
+       * Conditional update provides webhook
+       * idempotency for Checkout state.
+       */
       const checkoutUpdate = await markCheckoutPaid(payment.checkoutId, tx);
 
+      /*
+       * Stripe may deliver the same webhook more
+       * than once.
+       *
+       * If this Checkout was already changed,
+       * there is nothing else to repeat.
+       */
       if (checkoutUpdate.count !== 1) {
         return;
       }
 
-      await markPaymentPaid(payment.id, new Date(), tx);
+      const paymentUpdate = await markPaymentPaid(payment.id, new Date(), tx);
 
-      await markCheckoutOrdersPaid(payment.checkoutId, tx);
+      if (paymentUpdate.count !== 1) {
+        throw createHttpError(409, "The Payment status has already changed.");
+      }
+
+      const ordersUpdate = await markCheckoutOrdersPaid(payment.checkoutId, tx);
+
+      if (ordersUpdate.count === 0) {
+        throw createHttpError(409, "No Checkout Orders were updated as paid.");
+      }
     });
 
     return res.status(200).json({
@@ -333,6 +416,20 @@ export const stripeWebhook = async (req, res, next) => {
 
       await cancelCheckoutOrders(payment.checkoutId, tx);
     });
+
+    return res.status(200).json({
+      received: true,
+    });
+  }
+
+  const refundEventTypes = new Set([
+    "refund.created",
+    "refund.updated",
+    "refund.failed",
+  ]);
+
+  if (refundEventTypes.has(event.type)) {
+    await handleStripeRefundEvent(event.data.object);
 
     return res.status(200).json({
       received: true,
@@ -377,6 +474,12 @@ export const getPaymentStatus = async (req, res, next) => {
         productCheckingFee: payment.checkout.productCheckingFee,
 
         deliveryFee: payment.checkout.deliveryFee,
+
+        setupServiceRequested: payment.checkout.setupServiceRequested,
+
+        setupServiceFee: payment.checkout.setupServiceRequested
+          ? Number(CHECKOUT_FEES.SETUP_SERVICE_PER_CHECKOUT)
+          : 0,
 
         grandTotal: payment.checkout.grandTotal,
       },

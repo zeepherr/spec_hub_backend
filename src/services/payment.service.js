@@ -10,7 +10,7 @@ export const findCheckoutForPayment = async (checkoutId, db = prisma) => {
       id: true,
       buyerId: true,
       status: true,
-
+      setupServiceRequested: true,
       subtotal: true,
       productCheckingFee: true,
       deliveryFee: true,
@@ -65,6 +65,30 @@ export const updatePaymentProviderRef = async (
     },
   });
 };
+export const updatePaymentIntentRef = async (
+  paymentId,
+  paymentIntentRef,
+  db = prisma,
+) => {
+  return await db.payment.updateMany({
+    where: {
+      id: paymentId,
+
+      OR: [
+        {
+          paymentIntentRef: null,
+        },
+        {
+          paymentIntentRef,
+        },
+      ],
+    },
+
+    data: {
+      paymentIntentRef,
+    },
+  });
+};
 
 export const findPaymentByProviderRef = async (providerRef, db = prisma) => {
   return await db.payment.findFirst({
@@ -78,6 +102,7 @@ export const findPaymentByProviderRef = async (providerRef, db = prisma) => {
       amount: true,
       status: true,
       providerRef: true,
+      paymentIntentRef: true,
 
       checkout: {
         select: {
@@ -208,6 +233,7 @@ export const findPaymentStatusByProviderRef = async (
           subtotal: true,
           productCheckingFee: true,
           deliveryFee: true,
+          setupServiceRequested: true,
           grandTotal: true,
           currency: true,
 
