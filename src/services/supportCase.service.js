@@ -335,32 +335,52 @@ export const findMessageByClientMessageId = async (
 /*
  * Saves a new Socket message and updates the Support Case activity time.
  */
-export const createSupportMessage = async (
-  { conversationId, senderId, clientMessageId, content },
-  db = prisma,
-) => {
-  const message = await db.message.create({
-    data: {
-      conversationId,
-      senderId,
-      clientMessageId,
-      content,
-    },
+export const createSupportMessage = async ({
+  conversationId,
+  senderId,
+  clientMessageId,
+  content,
+  reopenCase = false,
+}) => {
+  return await prisma.$transaction(async (tx) => {
+    const message = await tx.message.create({
+      data: {
+        conversationId,
+        senderId,
+        clientMessageId,
+        content,
+      },
 
-    select: messageSelect,
+      select: messageSelect,
+    });
+
+    /*
+     * A new message moves the Support Case to the top
+     * of the Admin queue.
+     *
+     * If someone sends a new message after the case was
+     * resolved or closed, the case becomes OPEN again.
+     */
+    await tx.supportCase.update({
+      where: {
+        conversationId,
+      },
+
+      data: {
+        updatedAt: new Date(),
+
+        ...(reopenCase
+          ? {
+              status: "OPEN",
+              resolutionNote: null,
+              resolvedAt: null,
+            }
+          : {}),
+      },
+    });
+
+    return message;
   });
-
-  await db.supportCase.update({
-    where: {
-      conversationId,
-    },
-
-    data: {
-      updatedAt: new Date(),
-    },
-  });
-
-  return message;
 };
 
 /*
@@ -401,19 +421,22 @@ export const upsertAdminParticipant = async (
 export const markSupportMessagesAsRead = async (
   conversationId,
   readerId,
+  readAt = new Date(),
   db = prisma,
 ) => {
   return await db.message.updateMany({
     where: {
       conversationId,
+
       senderId: {
         not: readerId,
       },
+
       readAt: null,
     },
 
     data: {
-      readAt: new Date(),
+      readAt,
     },
   });
 };
@@ -446,5 +469,28 @@ export const updateSupportCaseStatus = async (
     },
 
     select: supportCaseSelect,
+  });
+};
+
+/*
+ * The first Admin who joins becomes the assigned Admin.
+ *
+ * Other Admins can still access the case, but this field
+ * shows who first handled it.
+ */
+export const assignSupportCaseAdminIfUnassigned = async (
+  conversationId,
+  adminId,
+  db = prisma,
+) => {
+  return await db.supportCase.updateMany({
+    where: {
+      conversationId,
+      adminId: null,
+    },
+
+    data: {
+      adminId,
+    },
   });
 };
