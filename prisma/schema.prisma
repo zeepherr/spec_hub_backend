@@ -153,8 +153,26 @@ model User {
   reviewsReceived      Review[]                  @relation("ReviewReceiver")
   openedSupportCases   SupportCase[]             @relation("SupportCaseOpenedBy")
   assignedCases        SupportCase[]             @relation("SupportCaseAdmin")
+  updatedWebAssets     WebAsset[]                @relation("WebAssetUpdatedBy")
   cartItems            CartItem[]
   checkouts            Checkout[]
+}
+
+model WebAsset {
+  id Int @id
+
+  coverImageKey     String? @unique
+  promotionImageKey String? @unique
+  homeImageKey      String? @unique
+  bannerImageKey    String? @unique
+
+  updatedById String?
+  updatedBy   User?   @relation("WebAssetUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([updatedById])
 }
 
 model AuthSession {
