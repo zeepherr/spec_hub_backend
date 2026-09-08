@@ -13,6 +13,7 @@ const PORT = config.port;
 const httpServer = createServer(app);
 
 const io = createSocketServer(httpServer);
+app.set("io", io);
 httpServer.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   startCheckoutExpirationJob();
