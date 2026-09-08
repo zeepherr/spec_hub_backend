@@ -250,14 +250,41 @@ export const publishListingById = (listingId) => {
   });
 };
 
-export const findAllActiveListings = async () => {
+export const findAllActiveListings = async (search) => {
+  const normalizedSearch = search?.trim();
+
   return prisma.listing.findMany({
     where: {
       status: "ACTIVE",
+
       category: {
         isActive: true,
       },
+
+      ...(normalizedSearch && {
+        OR: [
+          {
+            title: {
+              contains: normalizedSearch,
+              mode: "insensitive",
+            },
+          },
+          {
+            brand: {
+              contains: normalizedSearch,
+              mode: "insensitive",
+            },
+          },
+          {
+            model: {
+              contains: normalizedSearch,
+              mode: "insensitive",
+            },
+          },
+        ],
+      }),
     },
+
     include: {
       category: {
         select: {
@@ -265,12 +292,14 @@ export const findAllActiveListings = async () => {
           name: true,
         },
       },
+
       images: {
         orderBy: {
           sortOrder: "asc",
         },
       },
     },
+
     orderBy: {
       createdAt: "desc",
     },

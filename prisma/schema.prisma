@@ -286,7 +286,7 @@ model Conversation {
   createdBy    User                      @relation("ConversationCreator", fields: [createdById], references: [id])
   participants ConversationParticipant[]
   messages     Message[]
-  supportCases SupportCase[]
+  supportCases SupportCase?
 
   @@index([listingId])
   @@index([orderId])
@@ -307,14 +307,15 @@ model ConversationParticipant {
 }
 
 model Message {
-  id             Int          @id @default(autoincrement())
-  conversationId Int
-  senderId       String
-  content        String
-  readAt         DateTime?
-  createdAt      DateTime     @default(now())
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender         User         @relation(fields: [senderId], references: [id])
+  id              Int          @id @default(autoincrement())
+  conversationId  Int
+  senderId        String
+  clientMessageId String       @unique
+  content         String
+  readAt          DateTime?
+  createdAt       DateTime     @default(now())
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender          User         @relation(fields: [senderId], references: [id])
 
   @@index([conversationId])
   @@index([senderId])
@@ -485,24 +486,24 @@ model Refund {
 model SupportCase {
   id             Int              @id @default(autoincrement())
   orderId        Int
-  conversationId Int
+  conversationId Int              @unique
   openedById     String
   adminId        String?
   issueType      SupportIssueType
   status         SupportStatus    @default(OPEN)
   resolutionNote String?
   createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @default(now()) @updatedAt
   resolvedAt     DateTime?
   order          Order            @relation(fields: [orderId], references: [id])
   conversation   Conversation     @relation(fields: [conversationId], references: [id])
   openedBy       User             @relation("SupportCaseOpenedBy", fields: [openedById], references: [id])
   admin          User?            @relation("SupportCaseAdmin", fields: [adminId], references: [id])
 
-  @@index([orderId])
-  @@index([conversationId])
+  @@unique([orderId, openedById])
   @@index([openedById])
   @@index([adminId])
-  @@index([status])
+  @@index([status, updatedAt])
 }
 
 model Review {
