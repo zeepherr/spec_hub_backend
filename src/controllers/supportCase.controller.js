@@ -106,11 +106,19 @@ export const createSupportCase = async (req, res, next) => {
       issueType,
       message,
     });
+    const supportCaseResponse = toSupportCaseResponse(supportCase);
+
+    const io = req.app.get("io");
+
+    io?.to("support:admins").emit("support:case-created", {
+      success: true,
+      data: supportCaseResponse,
+    });
 
     return res.status(201).json({
       success: true,
       message: "Support Case created successfully.",
-      data: supportCase,
+      data: supportCaseResponse,
       meta: {
         created: true,
       },

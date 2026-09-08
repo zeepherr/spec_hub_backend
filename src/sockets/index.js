@@ -21,7 +21,9 @@ export const createSocketServer = (httpServer) => {
     console.log(
       `Socket connected: ${socket.id} | User: ${socket.data.user.id}`,
     );
-
+    if (socket.data.user.role === "ADMIN") {
+      socket.join("support:admins");
+    }
     registerSupportChatHandlers(io, socket);
 
     socket.on("disconnect", (reason) => {
