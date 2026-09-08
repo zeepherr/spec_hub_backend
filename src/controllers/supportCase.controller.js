@@ -11,6 +11,7 @@ import {
   updateSupportCaseStatus,
 } from "../services/supportCase.service.js";
 
+import { toSupportCaseResponse } from "../utils/supportCase.response.js";
 import {
   createSupportCaseSchema,
   supportCaseIdSchema,
@@ -160,7 +161,7 @@ export const getMySupportCases = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "Support Cases fetched successfully.",
-      data: supportCases,
+      data: supportCases.map(toSupportCaseResponse),
     });
   } catch (error) {
     return next(error);
@@ -189,7 +190,7 @@ export const getSupportCaseDetail = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "Support Case fetched successfully.",
-      data: supportCase,
+      data: toSupportCaseResponse(supportCase),
     });
   } catch (error) {
     return next(error);
@@ -253,7 +254,7 @@ export const getAdminSupportCases = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "Admin Support Cases fetched successfully.",
-      data: supportCases,
+      data: supportCases.map(toSupportCaseResponse),
     });
   } catch (error) {
     return next(error);
@@ -278,7 +279,7 @@ export const getAdminSupportCaseDetail = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "Admin Support Case fetched successfully.",
-      data: supportCase,
+      data: toSupportCaseResponse(supportCase),
     });
   } catch (error) {
     return next(error);

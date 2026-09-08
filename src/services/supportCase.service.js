@@ -60,6 +60,25 @@ const supportCaseSelect = {
           title: true,
           brand: true,
           model: true,
+          images: {
+            orderBy: [
+              {
+                isCover: "desc",
+              },
+              {
+                sortOrder: "asc",
+              },
+            ],
+
+            take: 1,
+
+            select: {
+              id: true,
+              imageKey: true,
+              isCover: true,
+              sortOrder: true,
+            },
+          },
         },
       },
     },
