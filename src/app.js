@@ -18,6 +18,7 @@ import supportCaseRoute, {
   adminSupportCaseRoute,
 } from "./routes/supportCase.route.js";
 import profileRouter from "./routes/user.route.js";
+import webAssetRoute, { adminWebAssetRoute } from "./routes/webAsset.route.js";
 
 const app = express();
 app.post(
@@ -42,6 +43,8 @@ app.use("/api/orders", orderRoute);
 app.use("/api/admin/orders", adminOrderRoute);
 app.use("/api/support-cases", supportCaseRoute);
 app.use("/api/admin/support-cases", adminSupportCaseRoute);
+app.use("/api/web-assets", webAssetRoute);
+app.use("/api/admin/web-assets", adminWebAssetRoute);
 app.use("/api/payments", paymentRoute);
 app.use(notFound);
 app.use(errorHandler);
