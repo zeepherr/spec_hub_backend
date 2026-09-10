@@ -57,3 +57,18 @@ export const removeCartItem = async (userId, listingId) => {
     },
   });
 };
+
+export const removeCartItemsAfterCheckout = async (
+  userId,
+  listingIds,
+  db = prisma,
+) => {
+  return await db.cartItem.deleteMany({
+    where: {
+      userId,
+      listingId: {
+        in: listingIds,
+      },
+    },
+  });
+};

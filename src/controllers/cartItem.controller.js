@@ -43,7 +43,7 @@ export const addListingToCart = async (req, res, next) => {
 
   if (listing.sellerId === req.user.id) {
     return next(
-      createHttpError(400, "You cannot add your own listing to cart."),
+      createHttpError(403, "You cannot add your own listing to cart."),
     );
   }
 
