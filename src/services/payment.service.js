@@ -106,8 +106,16 @@ export const findPaymentByProviderRef = async (providerRef, db = prisma) => {
 
       checkout: {
         select: {
+          id: true,
+          status: true,
           grandTotal: true,
           currency: true,
+
+          orders: {
+            select: {
+              listingId: true,
+            },
+          },
         },
       },
     },

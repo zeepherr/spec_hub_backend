@@ -41,7 +41,7 @@ export const findAllcategories = async (where = {}) => {
       },
     },
     orderBy: {
-      createdAt: "desc",
+      createdAt: "asc",
     },
   });
 };
