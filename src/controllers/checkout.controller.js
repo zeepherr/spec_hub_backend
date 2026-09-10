@@ -9,6 +9,7 @@ import {
   runCheckoutTransaction,
 } from "../services/checkout.service.js";
 
+import { removeCartItemsAfterCheckout } from "../services/cartItem.service.js";
 import {
   calculateCheckoutPricing,
   formatCheckoutPricing,
@@ -143,6 +144,7 @@ export const createCheckout = async (req, res, next) => {
       }));
 
       const orders = await createOrdersForCheckout(ordersToCreate, tx);
+      await removeCartItemsAfterCheckout(buyerId, listingIds, tx);
 
       return {
         checkout,
