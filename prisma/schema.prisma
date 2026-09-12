@@ -507,7 +507,7 @@ model SupportCase {
   orderId           Int
   conversationId    Int              @unique
   openedById        String
-  participantUserId String?
+  participantUserId String
   adminId           String?
   issueType         SupportIssueType
   status            SupportStatus    @default(OPEN)
@@ -518,11 +518,10 @@ model SupportCase {
   order             Order            @relation(fields: [orderId], references: [id])
   conversation      Conversation     @relation(fields: [conversationId], references: [id])
   openedBy          User             @relation("SupportCaseOpenedBy", fields: [openedById], references: [id])
-  participantUser   User?            @relation("SupportCaseParticipant", fields: [participantUserId], references: [id])
+  participantUser   User             @relation("SupportCaseParticipant", fields: [participantUserId], references: [id])
   admin             User?            @relation("SupportCaseAdmin", fields: [adminId], references: [id])
 
-  // @@unique([orderId, participantUserId])
-  @@unique([orderId, openedById])
+  @@unique([orderId, participantUserId])
   @@index([openedById])
   @@index([participantUserId])
   @@index([adminId])
