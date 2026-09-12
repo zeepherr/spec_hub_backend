@@ -1,6 +1,7 @@
 import express from "express";
 
 import {
+  createAdminSupportCases,
   createSupportCase,
   getAdminSupportCaseDetail,
   getAdminSupportCases,
@@ -40,6 +41,7 @@ export const adminSupportCaseRoute = express.Router();
 
 adminSupportCaseRoute.use(authenticate);
 adminSupportCaseRoute.use(allowRoles("ADMIN"));
+adminSupportCaseRoute.post("/", createAdminSupportCases);
 
 adminSupportCaseRoute.get("/", getAdminSupportCases);
 

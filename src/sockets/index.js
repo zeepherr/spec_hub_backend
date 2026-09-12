@@ -18,12 +18,16 @@ export const createSocketServer = (httpServer) => {
   io.use(authenticateSocket);
 
   io.on("connection", (socket) => {
-    console.log(
-      `Socket connected: ${socket.id} | User: ${socket.data.user.id}`,
-    );
-    if (socket.data.user.role === "ADMIN") {
+    const user = socket.data.user;
+
+    console.log(`Socket connected: ${socket.id} | User: ${user.id}`);
+
+    socket.join(`user:${user.id}`);
+
+    if (user.role === "ADMIN") {
       socket.join("support:admins");
     }
+
     registerSupportChatHandlers(io, socket);
 
     socket.on("disconnect", (reason) => {
