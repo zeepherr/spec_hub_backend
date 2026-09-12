@@ -143,22 +143,6 @@ export const findOrderForSupport = async (orderId, db = prisma) => {
 /*
  * Finds the one Support Case belonging to one user and one Order.
  */
-export const findSupportCaseByOrderAndOpener = async (
-  orderId,
-  openedById,
-  db = prisma,
-) => {
-  return await db.supportCase.findUnique({
-    where: {
-      orderId_openedById: {
-        orderId,
-        openedById,
-      },
-    },
-
-    select: supportCaseSelect,
-  });
-};
 
 export const findSupportCaseByOrderAndParticipant = async (
   orderId,
@@ -558,10 +542,69 @@ export const createAdminSupportCasesWithConversations = async ({
       );
 
       if (existingSupportCase) {
+        await tx.conversationParticipant.upsert({
+          where: {
+            conversationId_userId: {
+              conversationId: existingSupportCase.conversationId,
+              userId: adminId,
+            },
+          },
+
+          create: {
+            conversationId: existingSupportCase.conversationId,
+            userId: adminId,
+            roleInChat: "ADMIN",
+          },
+
+          update: {
+            roleInChat: "ADMIN",
+          },
+        });
+
+        const initialMessage = await tx.message.create({
+          data: {
+            conversationId: existingSupportCase.conversationId,
+            senderId: adminId,
+            clientMessageId: randomUUID(),
+            content: message,
+          },
+
+          select: messageSelect,
+        });
+
+        await tx.supportCase.update({
+          where: {
+            id: existingSupportCase.id,
+          },
+
+          data: {
+            updatedAt: new Date(),
+
+            adminId: existingSupportCase.adminId ?? adminId,
+
+            ...(["RESOLVED", "CLOSED"].includes(existingSupportCase.status)
+              ? {
+                  status: "OPEN",
+                  resolutionNote: null,
+                  resolvedAt: null,
+                }
+              : {}),
+          },
+        });
+
+        const refreshedSupportCase = await tx.supportCase.findUnique({
+          where: {
+            id: existingSupportCase.id,
+          },
+
+          select: supportCaseSelect,
+        });
+
         results.push({
           created: false,
           participantRole: targetRole,
-          supportCase: existingSupportCase,
+          supportCase: refreshedSupportCase,
+          initialMessage,
         });
 
         continue;
@@ -593,13 +636,15 @@ export const createAdminSupportCasesWithConversations = async ({
         ],
       });
 
-      await tx.message.create({
+      const initialMessage = await tx.message.create({
         data: {
           conversationId: conversation.id,
           senderId: adminId,
           clientMessageId: randomUUID(),
           content: message,
         },
+
+        select: messageSelect,
       });
 
       const supportCase = await tx.supportCase.create({
@@ -622,6 +667,7 @@ export const createAdminSupportCasesWithConversations = async ({
         created: true,
         participantRole: targetRole,
         supportCase,
+        initialMessage,
       });
     }
 

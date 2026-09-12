@@ -367,6 +367,7 @@ export const createAdminSupportCases = async (req, res, next) => {
       created: result.created,
       participantRole: result.participantRole,
       supportCase: toSupportCaseResponse(result.supportCase),
+      initialMessage: result.initialMessage,
     }));
 
     const createdCases = cases.filter((item) => item.created);
@@ -389,7 +390,43 @@ export const createAdminSupportCases = async (req, res, next) => {
         data: supportCase,
       });
     }
+    for (const item of cases) {
+      const supportCase = item.supportCase;
+      const initialMessage = item.initialMessage;
 
+      if (!initialMessage) {
+        continue;
+      }
+
+      const conversationRoom = `conversation:${supportCase.conversationId}`;
+
+      io?.to(conversationRoom).emit("message:new", {
+        success: true,
+        data: initialMessage,
+      });
+
+      const caseUpdate = {
+        id: supportCase.id,
+        conversationId: supportCase.conversationId,
+        participantUserId: supportCase.participantUserId,
+        status: supportCase.status,
+        updatedAt: supportCase.updatedAt,
+        lastMessage: initialMessage,
+      };
+
+      io?.to(`user:${supportCase.participantUserId}`).emit(
+        "support:case-updated",
+        {
+          success: true,
+          data: caseUpdate,
+        },
+      );
+
+      io?.to("support:admins").emit("support:case-updated", {
+        success: true,
+        data: caseUpdate,
+      });
+    }
     const anyCreated = createdCases.length > 0;
 
     return res.status(anyCreated ? 201 : 200).json({
@@ -410,6 +447,15 @@ export const createAdminSupportCases = async (req, res, next) => {
       },
     });
   } catch (error) {
+    if (error?.code === "P2002") {
+      return next(
+        createHttpError(
+          409,
+          "A Support Case for this participant already exists. Please refresh and try again.",
+        ),
+      );
+    }
+
     return next(error);
   }
 };

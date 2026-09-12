@@ -5,8 +5,24 @@ export const toSupportCaseResponse = (supportCase) => {
     return supportCase;
   }
 
+  let participantRole = null;
+
+  if (
+    supportCase.order &&
+    supportCase.participantUserId === supportCase.order.buyerId
+  ) {
+    participantRole = "BUYER";
+  } else if (
+    supportCase.order &&
+    supportCase.participantUserId === supportCase.order.sellerId
+  ) {
+    participantRole = "SELLER";
+  }
+
   return {
     ...supportCase,
+
+    participantRole,
 
     order: supportCase.order
       ? {
