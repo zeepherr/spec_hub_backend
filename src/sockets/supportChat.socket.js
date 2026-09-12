@@ -53,9 +53,10 @@ const getAuthorizedSupportCase = async (conversationId, user) => {
   }
 
   const isAdmin = user.role === "ADMIN";
-  const isCaseOwner = supportCase.openedById === user.id;
 
-  if (!isAdmin && !isCaseOwner) {
+  const isParticipant = supportCase.participantUserId === user.id;
+
+  if (!isAdmin && !isParticipant) {
     return {
       error: {
         code: "CONVERSATION_FORBIDDEN",
@@ -262,6 +263,30 @@ export const registerSupportChatHandlers = (io, socket) => {
       io.to(room).emit("message:new", {
         success: true,
         data: savedMessage,
+      });
+      const caseUpdate = {
+        id: authorization.supportCase.id,
+        conversationId,
+        participantUserId: authorization.supportCase.participantUserId,
+
+        status: shouldReopenCase ? "OPEN" : authorization.supportCase.status,
+
+        updatedAt: new Date().toISOString(),
+
+        lastMessage: savedMessage,
+      };
+
+      io.to(`user:${authorization.supportCase.participantUserId}`).emit(
+        "support:case-updated",
+        {
+          success: true,
+          data: caseUpdate,
+        },
+      );
+
+      io.to("support:admins").emit("support:case-updated", {
+        success: true,
+        data: caseUpdate,
       });
 
       return sendAcknowledgement(acknowledge, {

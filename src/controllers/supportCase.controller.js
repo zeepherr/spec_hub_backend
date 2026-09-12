@@ -1,10 +1,11 @@
 import createHttpError from "http-errors";
 
 import {
+  createAdminSupportCasesWithConversations,
   createSupportCaseWithConversation,
   findOrderForSupport,
   findSupportCaseById,
-  findSupportCaseByOrderAndOpener,
+  findSupportCaseByOrderAndParticipant,
   findSupportCasesByUser,
   findSupportCasesForAdmin,
   findSupportMessages,
@@ -13,6 +14,7 @@ import {
 
 import { toSupportCaseResponse } from "../utils/supportCase.response.js";
 import {
+  createAdminSupportCaseSchema,
   createSupportCaseSchema,
   supportCaseIdSchema,
   supportMessagesQuerySchema,
@@ -23,11 +25,13 @@ import {
  * Checks whether the authenticated user is allowed
  * to access one Support Case.
  *
- * The user who opened the case can access it.
+ * Normal USER can access the case only when they are
+ * the private participant of that case.
+ *
  * Admin can access every Support Case.
  */
 const canAccessSupportCase = (supportCase, user) => {
-  return supportCase.openedById === user.id || user.role === "ADMIN";
+  return supportCase.participantUserId === user.id || user.role === "ADMIN";
 };
 
 /*
@@ -83,7 +87,7 @@ export const createSupportCase = async (req, res, next) => {
      * Buyer and Seller still get separate cases because
      * they have different user IDs.
      */
-    const existingSupportCase = await findSupportCaseByOrderAndOpener(
+    const existingSupportCase = await findSupportCaseByOrderAndParticipant(
       orderId,
       openedById,
     );
@@ -92,7 +96,7 @@ export const createSupportCase = async (req, res, next) => {
       return res.status(200).json({
         success: true,
         message: "Support Case already exists.",
-        data: existingSupportCase,
+        data: toSupportCaseResponse(existingSupportCase),
         meta: {
           created: false,
         },
@@ -102,6 +106,7 @@ export const createSupportCase = async (req, res, next) => {
     const supportCase = await createSupportCaseWithConversation({
       orderId,
       openedById,
+      participantUserId: openedById,
       roleInChat,
       issueType,
       message,
@@ -133,7 +138,7 @@ export const createSupportCase = async (req, res, next) => {
      */
     if (error?.code === "P2002" && parsedBody) {
       try {
-        const existingSupportCase = await findSupportCaseByOrderAndOpener(
+        const existingSupportCase = await findSupportCaseByOrderAndParticipant(
           parsedBody.orderId,
           req.user.id,
         );
@@ -142,7 +147,7 @@ export const createSupportCase = async (req, res, next) => {
           return res.status(200).json({
             success: true,
             message: "Support Case already exists.",
-            data: existingSupportCase,
+            data: toSupportCaseResponse(existingSupportCase),
             meta: {
               created: false,
             },
@@ -315,13 +320,142 @@ export const updateAdminSupportCaseStatus = async (req, res, next) => {
       supportCaseId,
       data,
     );
+    const response = toSupportCaseResponse(updatedSupportCase);
+    const io = req.app.get("io");
 
+    io?.to(`user:${response.participantUserId}`).emit("support:case-updated", {
+      success: true,
+      data: response,
+    });
+
+    io?.to("support:admins").emit("support:case-updated", {
+      success: true,
+      data: response,
+    });
     return res.status(200).json({
       success: true,
       message: "Support Case status updated successfully.",
-      data: updatedSupportCase,
+      data: response,
     });
   } catch (error) {
+    return next(error);
+  }
+};
+
+export const createAdminSupportCases = async (req, res, next) => {
+  try {
+    const { orderId, targetRoles, issueType, message } =
+      createAdminSupportCaseSchema.parse(req.body);
+
+    const adminId = req.user.id;
+
+    const order = await findOrderForSupport(orderId);
+
+    if (!order) {
+      throw createHttpError(404, "Order not found.");
+    }
+
+    const results = await createAdminSupportCasesWithConversations({
+      order,
+      adminId,
+      targetRoles,
+      issueType,
+      message,
+    });
+
+    const cases = results.map((result) => ({
+      created: result.created,
+      participantRole: result.participantRole,
+      supportCase: toSupportCaseResponse(result.supportCase),
+      initialMessage: result.initialMessage,
+    }));
+
+    const createdCases = cases.filter((item) => item.created);
+
+    const io = req.app.get("io");
+
+    for (const item of createdCases) {
+      const supportCase = item.supportCase;
+
+      io?.to(`user:${supportCase.participantUserId}`).emit(
+        "support:case-created",
+        {
+          success: true,
+          data: supportCase,
+        },
+      );
+
+      io?.to("support:admins").emit("support:case-created", {
+        success: true,
+        data: supportCase,
+      });
+    }
+    for (const item of cases) {
+      const supportCase = item.supportCase;
+      const initialMessage = item.initialMessage;
+
+      if (!initialMessage) {
+        continue;
+      }
+
+      const conversationRoom = `conversation:${supportCase.conversationId}`;
+
+      io?.to(conversationRoom).emit("message:new", {
+        success: true,
+        data: initialMessage,
+      });
+
+      const caseUpdate = {
+        id: supportCase.id,
+        conversationId: supportCase.conversationId,
+        participantUserId: supportCase.participantUserId,
+        status: supportCase.status,
+        updatedAt: supportCase.updatedAt,
+        lastMessage: initialMessage,
+      };
+
+      io?.to(`user:${supportCase.participantUserId}`).emit(
+        "support:case-updated",
+        {
+          success: true,
+          data: caseUpdate,
+        },
+      );
+
+      io?.to("support:admins").emit("support:case-updated", {
+        success: true,
+        data: caseUpdate,
+      });
+    }
+    const anyCreated = createdCases.length > 0;
+
+    return res.status(anyCreated ? 201 : 200).json({
+      success: true,
+
+      message: anyCreated
+        ? "Support conversation prepared successfully."
+        : "Support conversation already exists.",
+
+      data: {
+        cases,
+      },
+
+      meta: {
+        createdCount: createdCases.length,
+
+        reusedCount: cases.length - createdCases.length,
+      },
+    });
+  } catch (error) {
+    if (error?.code === "P2002") {
+      return next(
+        createHttpError(
+          409,
+          "A Support Case for this participant already exists. Please refresh and try again.",
+        ),
+      );
+    }
+
     return next(error);
   }
 };

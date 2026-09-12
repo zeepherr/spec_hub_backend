@@ -87,3 +87,27 @@ export const updateSupportCaseStatusSchema = z.object({
     .max(2000, "Resolution note must not exceed 2000 characters.")
     .optional(),
 });
+
+export const createAdminSupportCaseSchema = z.object({
+  orderId: z.coerce
+    .number()
+    .int("Order ID must be an integer.")
+    .positive("Order ID must be positive."),
+
+  targetRoles: z
+    .array(z.enum(["BUYER", "SELLER"]))
+    .min(1, "Select at least one recipient.")
+    .max(2, "Maximum two recipients.")
+    .refine(
+      (roles) => new Set(roles).size === roles.length,
+      "Duplicate recipient roles are not allowed.",
+    ),
+
+  issueType: supportIssueTypeSchema,
+
+  message: z
+    .string()
+    .trim()
+    .min(1, "Message is required.")
+    .max(2000, "Message must not exceed 2000 characters."),
+});

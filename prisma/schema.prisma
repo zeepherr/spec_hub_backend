@@ -126,36 +126,37 @@ enum SupportStatus {
 }
 
 model User {
-  id                   String                    @id @default(uuid())
-  role                 UserRole                  @default(USER)
-  email                String                    @unique
-  passwordHash         String
-  firstName            String
-  lastName             String
-  phone                String?
-  address              String?
-  googleSub            String?                   @unique
-  profileImageKey      String?
-  isVerified           Boolean                   @default(false)
-  isActive             Boolean                   @default(true)
-  createdAt            DateTime                  @default(now())
-  updatedAt            DateTime                  @updatedAt
-  listings             Listing[]
-  authSessions         AuthSession[]
-  buyerOrders          Order[]                   @relation("BuyerOrders")
-  sellerOrders         Order[]                   @relation("SellerOrders")
-  createdConversations Conversation[]            @relation("ConversationCreator")
-  participants         ConversationParticipant[]
-  messages             Message[]
-  payments             Payment[]
-  inspections          Inspection[]              @relation("InspectionAdmin")
-  reviewsWritten       Review[]                  @relation("ReviewWriter")
-  reviewsReceived      Review[]                  @relation("ReviewReceiver")
-  openedSupportCases   SupportCase[]             @relation("SupportCaseOpenedBy")
-  assignedCases        SupportCase[]             @relation("SupportCaseAdmin")
-  updatedWebAssets     WebAsset[]                @relation("WebAssetUpdatedBy")
-  cartItems            CartItem[]
-  checkouts            Checkout[]
+  id                        String                    @id @default(uuid())
+  role                      UserRole                  @default(USER)
+  email                     String                    @unique
+  passwordHash              String
+  firstName                 String
+  lastName                  String
+  phone                     String?
+  address                   String?
+  googleSub                 String?                   @unique
+  profileImageKey           String?
+  isVerified                Boolean                   @default(false)
+  isActive                  Boolean                   @default(true)
+  createdAt                 DateTime                  @default(now())
+  updatedAt                 DateTime                  @updatedAt
+  listings                  Listing[]
+  authSessions              AuthSession[]
+  buyerOrders               Order[]                   @relation("BuyerOrders")
+  sellerOrders              Order[]                   @relation("SellerOrders")
+  createdConversations      Conversation[]            @relation("ConversationCreator")
+  participants              ConversationParticipant[]
+  messages                  Message[]
+  payments                  Payment[]
+  inspections               Inspection[]              @relation("InspectionAdmin")
+  reviewsWritten            Review[]                  @relation("ReviewWriter")
+  reviewsReceived           Review[]                  @relation("ReviewReceiver")
+  openedSupportCases        SupportCase[]             @relation("SupportCaseOpenedBy")
+  assignedCases             SupportCase[]             @relation("SupportCaseAdmin")
+  supportCaseParticipations SupportCase[]             @relation("SupportCaseParticipant")
+  updatedWebAssets          WebAsset[]                @relation("WebAssetUpdatedBy")
+  cartItems                 CartItem[]
+  checkouts                 Checkout[]
 }
 
 model WebAsset {
@@ -502,24 +503,28 @@ model Refund {
 }
 
 model SupportCase {
-  id             Int              @id @default(autoincrement())
-  orderId        Int
-  conversationId Int              @unique
-  openedById     String
-  adminId        String?
-  issueType      SupportIssueType
-  status         SupportStatus    @default(OPEN)
-  resolutionNote String?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @default(now()) @updatedAt
-  resolvedAt     DateTime?
-  order          Order            @relation(fields: [orderId], references: [id])
-  conversation   Conversation     @relation(fields: [conversationId], references: [id])
-  openedBy       User             @relation("SupportCaseOpenedBy", fields: [openedById], references: [id])
-  admin          User?            @relation("SupportCaseAdmin", fields: [adminId], references: [id])
+  id                Int              @id @default(autoincrement())
+  orderId           Int
+  conversationId    Int              @unique
+  openedById        String
+  participantUserId String?
+  adminId           String?
+  issueType         SupportIssueType
+  status            SupportStatus    @default(OPEN)
+  resolutionNote    String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @default(now()) @updatedAt
+  resolvedAt        DateTime?
+  order             Order            @relation(fields: [orderId], references: [id])
+  conversation      Conversation     @relation(fields: [conversationId], references: [id])
+  openedBy          User             @relation("SupportCaseOpenedBy", fields: [openedById], references: [id])
+  participantUser   User?            @relation("SupportCaseParticipant", fields: [participantUserId], references: [id])
+  admin             User?            @relation("SupportCaseAdmin", fields: [adminId], references: [id])
 
+  // @@unique([orderId, participantUserId])
   @@unique([orderId, openedById])
   @@index([openedById])
+  @@index([participantUserId])
   @@index([adminId])
   @@index([status, updatedAt])
 }

@@ -28,6 +28,7 @@ const supportCaseSelect = {
   id: true,
   orderId: true,
   conversationId: true,
+  participantUserId: true,
   openedById: true,
   adminId: true,
   issueType: true,
@@ -38,6 +39,9 @@ const supportCaseSelect = {
   resolvedAt: true,
 
   openedBy: {
+    select: userPreviewSelect,
+  },
+  participantUser: {
     select: userPreviewSelect,
   },
 
@@ -139,23 +143,23 @@ export const findOrderForSupport = async (orderId, db = prisma) => {
 /*
  * Finds the one Support Case belonging to one user and one Order.
  */
-export const findSupportCaseByOrderAndOpener = async (
+
+export const findSupportCaseByOrderAndParticipant = async (
   orderId,
-  openedById,
+  participantUserId,
   db = prisma,
 ) => {
   return await db.supportCase.findUnique({
     where: {
-      orderId_openedById: {
+      orderId_participantUserId: {
         orderId,
-        openedById,
+        participantUserId,
       },
     },
 
     select: supportCaseSelect,
   });
 };
-
 /*
  * Creates all initial Support Case records atomically:
  *
@@ -169,6 +173,7 @@ export const findSupportCaseByOrderAndOpener = async (
 export const createSupportCaseWithConversation = async ({
   orderId,
   openedById,
+  participantUserId,
   roleInChat,
   issueType,
   message,
@@ -207,6 +212,7 @@ export const createSupportCaseWithConversation = async ({
         orderId,
         conversationId: conversation.id,
         openedById,
+        participantUserId,
         issueType,
       },
 
@@ -221,7 +227,7 @@ export const createSupportCaseWithConversation = async ({
 export const findSupportCasesByUser = async (userId, db = prisma) => {
   return await db.supportCase.findMany({
     where: {
-      openedById: userId,
+      participantUserId: userId,
     },
 
     select: supportCaseSelect,
@@ -278,6 +284,7 @@ export const findSupportAccessByConversationId = async (
       orderId: true,
       conversationId: true,
       openedById: true,
+      participantUserId: true,
       adminId: true,
       status: true,
 
@@ -511,5 +518,159 @@ export const assignSupportCaseAdminIfUnassigned = async (
     data: {
       adminId,
     },
+  });
+};
+
+export const createAdminSupportCasesWithConversations = async ({
+  order,
+  adminId,
+  targetRoles,
+  issueType,
+  message,
+}) => {
+  return await prisma.$transaction(async (tx) => {
+    const results = [];
+
+    for (const targetRole of targetRoles) {
+      const participantUserId =
+        targetRole === "BUYER" ? order.buyerId : order.sellerId;
+
+      const existingSupportCase = await findSupportCaseByOrderAndParticipant(
+        order.id,
+        participantUserId,
+        tx,
+      );
+
+      if (existingSupportCase) {
+        await tx.conversationParticipant.upsert({
+          where: {
+            conversationId_userId: {
+              conversationId: existingSupportCase.conversationId,
+              userId: adminId,
+            },
+          },
+
+          create: {
+            conversationId: existingSupportCase.conversationId,
+            userId: adminId,
+            roleInChat: "ADMIN",
+          },
+
+          update: {
+            roleInChat: "ADMIN",
+          },
+        });
+
+        const initialMessage = await tx.message.create({
+          data: {
+            conversationId: existingSupportCase.conversationId,
+            senderId: adminId,
+            clientMessageId: randomUUID(),
+            content: message,
+          },
+
+          select: messageSelect,
+        });
+
+        await tx.supportCase.update({
+          where: {
+            id: existingSupportCase.id,
+          },
+
+          data: {
+            updatedAt: new Date(),
+
+            adminId: existingSupportCase.adminId ?? adminId,
+
+            ...(["RESOLVED", "CLOSED"].includes(existingSupportCase.status)
+              ? {
+                  status: "OPEN",
+                  resolutionNote: null,
+                  resolvedAt: null,
+                }
+              : {}),
+          },
+        });
+
+        const refreshedSupportCase = await tx.supportCase.findUnique({
+          where: {
+            id: existingSupportCase.id,
+          },
+
+          select: supportCaseSelect,
+        });
+
+        results.push({
+          created: false,
+          participantRole: targetRole,
+          supportCase: refreshedSupportCase,
+          initialMessage,
+        });
+
+        continue;
+      }
+
+      const conversation = await tx.conversation.create({
+        data: {
+          orderId: order.id,
+          createdById: adminId,
+        },
+
+        select: {
+          id: true,
+        },
+      });
+
+      await tx.conversationParticipant.createMany({
+        data: [
+          {
+            conversationId: conversation.id,
+            userId: adminId,
+            roleInChat: "ADMIN",
+          },
+          {
+            conversationId: conversation.id,
+            userId: participantUserId,
+            roleInChat: targetRole,
+          },
+        ],
+      });
+
+      const initialMessage = await tx.message.create({
+        data: {
+          conversationId: conversation.id,
+          senderId: adminId,
+          clientMessageId: randomUUID(),
+          content: message,
+        },
+
+        select: messageSelect,
+      });
+
+      const supportCase = await tx.supportCase.create({
+        data: {
+          orderId: order.id,
+          conversationId: conversation.id,
+
+          openedById: adminId,
+          participantUserId,
+
+          adminId,
+
+          issueType,
+        },
+
+        select: supportCaseSelect,
+      });
+
+      results.push({
+        created: true,
+        participantRole: targetRole,
+        supportCase,
+        initialMessage,
+      });
+    }
+
+    return results;
   });
 };
