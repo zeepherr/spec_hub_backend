@@ -149,8 +149,6 @@ model User {
   messages                  Message[]
   payments                  Payment[]
   inspections               Inspection[]              @relation("InspectionAdmin")
-  reviewsWritten            Review[]                  @relation("ReviewWriter")
-  reviewsReceived           Review[]                  @relation("ReviewReceiver")
   openedSupportCases        SupportCase[]             @relation("SupportCaseOpenedBy")
   assignedCases             SupportCase[]             @relation("SupportCaseAdmin")
   supportCaseParticipations SupportCase[]             @relation("SupportCaseParticipant")
@@ -363,7 +361,6 @@ model Order {
   shipments     Shipment[]
   inspection    Inspection?
   conversations Conversation[]
-  reviews       Review[]
   supportCases  SupportCase[]
 
   @@index([checkoutId])
@@ -526,21 +523,4 @@ model SupportCase {
   @@index([participantUserId])
   @@index([adminId])
   @@index([status, updatedAt])
-}
-
-model Review {
-  id         Int      @id @default(autoincrement())
-  orderId    Int
-  reviewerId String
-  revieweeId String
-  rating     Int
-  comment    String?
-  createdAt  DateTime @default(now())
-  order      Order    @relation(fields: [orderId], references: [id])
-  reviewer   User     @relation("ReviewWriter", fields: [reviewerId], references: [id])
-  reviewee   User     @relation("ReviewReceiver", fields: [revieweeId], references: [id])
-
-  @@unique([orderId, reviewerId, revieweeId])
-  @@index([reviewerId])
-  @@index([revieweeId])
 }
