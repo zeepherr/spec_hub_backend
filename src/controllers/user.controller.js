@@ -1,8 +1,15 @@
-import crypto from "node:crypto";
 import createHttpError from "http-errors";
-import {uploadToR2,deleteFromR2, getR2PublicUrl,} from "../services/r2.storage.service.js";
+import crypto from "node:crypto";
+import {
+  deleteFromR2,
+  getR2PublicUrl,
+  uploadToR2,
+} from "../services/r2.storage.service.js";
 
-import { getProfileByUserId, updateProfileByUserId } from "../services/user.service.js";
+import {
+  getProfileByUserId,
+  updateProfileByUserId,
+} from "../services/user.service.js";
 import { updateProfileSchema } from "../validations/user.schema.js";
 
 export const getMyProfile = async (req, res, next) => {
@@ -21,7 +28,7 @@ export const getMyProfile = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      user:{...user,profileImageUrl},
+      user: { ...user, profileImageUrl },
     });
   } catch (error) {
     next(error);
@@ -81,9 +88,7 @@ export const updateMyProfile = async (req, res, next) => {
     };
 
     if (Object.keys(finalData).length === 0) {
-      return next(
-        createHttpError(400, "ไม่มีข้อมูลสำหรับแก้ไข"),
-      );
+      return next(createHttpError(400, "ไม่มีข้อมูลสำหรับแก้ไข"));
     }
 
     // บันทึกฐานข้อมูลหลังจากอัปโหลดรูปใหม่สำเร็จแล้ว
@@ -97,10 +102,7 @@ export const updateMyProfile = async (req, res, next) => {
         try {
           await deleteFromR2(newImageKey);
         } catch (cleanupError) {
-          console.error(
-            "Cannot clean up new profile image:",
-            cleanupError,
-          );
+          console.error("Cannot clean up new profile image:", cleanupError);
         }
       }
 
@@ -111,22 +113,18 @@ export const updateMyProfile = async (req, res, next) => {
     if (
       newImageKey &&
       currentUser.profileImageKey &&
-      currentUser.profileImageKey !==
-        updatedUser.profileImageKey
+      currentUser.profileImageKey !== updatedUser.profileImageKey
     ) {
       try {
         await deleteFromR2(currentUser.profileImageKey);
       } catch (deleteError) {
-        console.error(
-          "Cannot delete old profile image:",
-          deleteError,
-        );
+        console.error("Cannot delete old profile image:", deleteError);
       }
     }
 
     return res.status(200).json({
       success: true,
-      message: "แก้ไขข้อมูลส่วนตัวสำเร็จ",
+      message: "Updated Successfully.",
       user: {
         ...updatedUser,
         profileImageUrl: updatedUser.profileImageKey
