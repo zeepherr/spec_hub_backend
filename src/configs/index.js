@@ -27,7 +27,9 @@ export const config = {
   stripe_webhook_secret: process.env.STRIPE_WEBHOOK_SECRET || "",
   client_url: process.env.CLIENT_URL || "http://localhost:5173",
   gemini_api: process.env.GEMINI_API_KEY || "",
+  tavily_api: process.env.TAVILY_API_KEY || "",
   gemini_model: process.env.GEMINI_MODEL || "",
+  gemini_search_model: process.env.GEMINI_SEARCH_MODEL || "gemini-2.5-flash",
   checkout_reservation_minutes: getPositiveInteger(
     process.env.CHECKOUT_RESERVATION_MINUTES,
     3,

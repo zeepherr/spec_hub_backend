@@ -185,3 +185,59 @@ export const normalizeGoogleAuthError = (error) => {
     cause: error,
   });
 };
+
+// Tavily
+export const normalizeTavilyError = (error) => {
+  const providerStatus = Number(
+    error?.status ?? error?.statusCode ?? error?.response?.status,
+  );
+
+  if (providerStatus === 400) {
+    return createProviderError({
+      status: 502,
+      code: "SEARCH_REQUEST_ERROR",
+      message: "The market search request could not be processed.",
+      cause: error,
+    });
+  }
+
+  if (providerStatus === 401 || providerStatus === 403) {
+    return createProviderError({
+      status: 503,
+      code: "SEARCH_CONFIGURATION_ERROR",
+      message: "The market search service is currently unavailable.",
+      cause: error,
+    });
+  }
+
+  if (
+    providerStatus === 429 ||
+    providerStatus === 432 ||
+    providerStatus === 433
+  ) {
+    return createProviderError({
+      status: 429,
+      code: "SEARCH_RATE_LIMITED",
+      message: "The market search limit has been reached.",
+      cause: error,
+      retryAfterSeconds: 60,
+    });
+  }
+
+  if (providerStatus >= 500 || networkErrorCodes.has(error?.code)) {
+    return createProviderError({
+      status: 503,
+      code: "SEARCH_SERVICE_UNAVAILABLE",
+      message: "The market search service is temporarily unavailable.",
+      cause: error,
+      retryAfterSeconds: 30,
+    });
+  }
+
+  return createProviderError({
+    status: 502,
+    code: "SEARCH_PROVIDER_ERROR",
+    message: "The market search request could not be completed.",
+    cause: error,
+  });
+};
