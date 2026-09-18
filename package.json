@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "node --watch src/server.js",
+    "postinstall": "prisma generate",
     "start": "node src/server.js",
     "test": "node --test"
   },
