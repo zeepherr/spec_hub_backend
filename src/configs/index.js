@@ -11,7 +11,7 @@ export const config = {
   port: process.env.PORT || "",
   database_url: process.env.DATABASE_URL || "",
   jwt_secret: process.env.JWT_SECRET || "",
-  otp_secret: process.env.OPT_SECRET || "",
+  otp_secret: process.env.OTP_SECRET || "",
   mail_user: process.env.MAIL_USER || "",
   mail_app_password: process.env.MAIL_APP_PASSWORD || "",
   node_env: process.env.NODE_ENV || "development",
