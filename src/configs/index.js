@@ -7,6 +7,15 @@ const getPositiveInteger = (value, fallback) => {
     ? parsedValue
     : fallback;
 };
+
+const getNonNegativeInteger = (value, fallback) => {
+  const parsedValue = Number.parseInt(value ?? "", 10);
+
+  return Number.isInteger(parsedValue) && parsedValue >= 0
+    ? parsedValue
+    : fallback;
+};
+
 export const config = {
   port: process.env.PORT || "",
   database_url: process.env.DATABASE_URL || "",
@@ -15,6 +24,10 @@ export const config = {
   mail_user: process.env.MAIL_USER || "",
   mail_app_password: process.env.MAIL_APP_PASSWORD || "",
   node_env: process.env.NODE_ENV || "development",
+  trust_proxy_hops: getNonNegativeInteger(
+    process.env.TRUST_PROXY_HOPS,
+    process.env.NODE_ENV === "production" ? 1 : 0,
+  ),
   r2_account_id: process.env.R2_ACCOUNT_ID || "",
   r2_access_key_id: process.env.R2_ACCESS_KEY_ID || "",
   r2_secret_access_key: process.env.R2_SECRET_ACCESS_KEY || "",

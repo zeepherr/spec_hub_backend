@@ -1,7 +1,7 @@
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
-import { corsOptions } from "./configs/index.js";
+import { config, corsOptions } from "./configs/index.js";
 import { stripeWebhook } from "./controllers/payment.controller.js";
 import { errorHandler } from "./middlewares/error.middleware.js";
 import { notFound } from "./middlewares/notFound.middleware.js";
@@ -21,6 +21,11 @@ import profileRouter from "./routes/user.route.js";
 import webAssetRoute, { adminWebAssetRoute } from "./routes/webAsset.route.js";
 
 const app = express();
+
+if (config.trust_proxy_hops > 0) {
+  app.set("trust proxy", config.trust_proxy_hops);
+}
+
 app.post(
   "/api/webhooks/stripe",
   express.raw({ type: "application/json" }),
