@@ -11,6 +11,7 @@ import {
   findUserByGoogleSub,
   getPendingByEmail,
   getUserBy,
+  releasePendingOtpCooldown,
   revokeSession,
   savePendingRegistration,
   setUserGoogleSub,
@@ -35,6 +36,23 @@ import {
   resendVerificationSchema,
   verifyEmailSchema,
 } from "../validations/auth.schema.js";
+
+const sendOtpWithRetryRecovery = async (email, otp) => {
+  try {
+    return await sendRegistrationOtp(email, otp);
+  } catch (error) {
+    try {
+      await releasePendingOtpCooldown(email);
+    } catch (cooldownError) {
+      console.error("Failed to release OTP cooldown after email failure", {
+        code: cooldownError.code,
+        message: cooldownError.message,
+      });
+    }
+
+    throw error;
+  }
+};
 
 export const register = async (req, res, next) => {
   const data = registerSchema.parse(req.body);
@@ -67,7 +85,7 @@ export const register = async (req, res, next) => {
   const resendAvailableAt = new Date(
     new Date(pending.lastSentAt).getTime() + 60 * 1000,
   );
-  await sendRegistrationOtp(email, otp); //send otp by mail
+  await sendOtpWithRetryRecovery(email, otp); //send otp by mail
 
   return res.status(202).json({
     statu: "pending",
@@ -251,7 +269,7 @@ export const resendEmailOtp = async (req, res, next) => {
     expiresAt,
   });
 
-  await sendRegistrationOtp(email, otp); //resend to user
+  await sendOtpWithRetryRecovery(email, otp); //resend to user
   const resendAvailableAt = new Date(
     updatedPending.lastSentAt.getTime() + 60_000,
   );

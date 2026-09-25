@@ -134,6 +134,15 @@ export const updatePendingOtp = async ({ email, otpHash, expiresAt }) => {
   });
 };
 
+export const releasePendingOtpCooldown = async (email) => {
+  await prisma.pendingRegistration.updateMany({
+    where: { email },
+    data: {
+      lastSentAt: new Date(Date.now() - OTP_COOLDOWN_MS - 1_000),
+    },
+  });
+};
+
 export const createAuthSession = async (user, refreshToken) => {
   return prisma.authSession.create({
     data: {

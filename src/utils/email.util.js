@@ -58,15 +58,28 @@ export const checkEmailDomain = async (email) => {
 
 const transporter = nodeMailer.createTransport({
   service: "gmail",
+  connectionTimeout: 10_000,
+  greetingTimeout: 10_000,
+  socketTimeout: 20_000,
   auth: {
     user: config.mail_user,
     pass: config.mail_app_password,
   },
 });
 
+export const verifyEmailTransport = async () => transporter.verify();
+
+const recipientWasAccepted = (accepted, email) =>
+  accepted.some((recipient) => {
+    const address =
+      typeof recipient === "string" ? recipient : recipient?.address;
+
+    return address?.toLowerCase() === email.toLowerCase();
+  });
+
 export const sendRegistrationOtp = async (email, otp) => {
   const minutes = (10 * 60 * 1000) / (60 * 1000);
-  return transporter.sendMail({
+  const result = await transporter.sendMail({
     from: `"SpecHUB" <${config.mail_user}>`,
 
     to: email,
@@ -99,4 +112,20 @@ export const sendRegistrationOtp = async (email, otp) => {
       </p>
     `,
   });
+
+  if (!recipientWasAccepted(result.accepted ?? [], email)) {
+    const error = new Error("The email provider did not accept the recipient.");
+    error.code = "EMAIL_RECIPIENT_REJECTED";
+    error.responseCode = result.responseCode;
+    error.response = result.response;
+    throw error;
+  }
+
+  console.info("Registration email accepted by provider", {
+    messageId: result.messageId,
+    acceptedCount: result.accepted?.length ?? 0,
+    rejectedCount: result.rejected?.length ?? 0,
+  });
+
+  return result;
 };

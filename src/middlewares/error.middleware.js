@@ -110,6 +110,10 @@ export const errorHandler = (err, req, res, next) => {
 
     providerRequestId:
       err.providerRequestId ?? err.requestId ?? err.cause?.requestId,
+
+    command: err.command,
+    responseCode: err.responseCode,
+    response: err.response,
   };
 
   if (status >= 500) {

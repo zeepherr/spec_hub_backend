@@ -41,6 +41,89 @@ export const config = {
   ),
 };
 
+const REQUIRED_RUNTIME_CONFIG = [
+  ["PORT", config.port],
+  ["DATABASE_URL", config.database_url],
+  ["CLIENT_URL", config.client_url],
+  ["JWT_SECRET", config.jwt_secret],
+  ["OTP_SECRET", config.otp_secret],
+  ["MAIL_USER", config.mail_user],
+  ["MAIL_APP_PASSWORD", config.mail_app_password],
+];
+
+export const validateRuntimeConfig = () => {
+  const missing = REQUIRED_RUNTIME_CONFIG.filter(([, value]) => !value).map(
+    ([name]) => name,
+  );
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required environment variables: ${missing.join(", ")}`,
+    );
+  }
+
+  const quoted = REQUIRED_RUNTIME_CONFIG.filter(([, value]) =>
+    /^(?:".*"|'.*')$/.test(value),
+  ).map(([name]) => name);
+
+  if (quoted.length > 0) {
+    throw new Error(
+      `${quoted.join(", ")} must not include surrounding quotes in the deployment environment.`,
+    );
+  }
+
+  if (!/^\d+$/.test(config.port) || Number(config.port) <= 0) {
+    throw new Error("PORT must be a positive integer.");
+  }
+
+  if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(config.mail_user)) {
+    throw new Error("MAIL_USER must be a plain email address.");
+  }
+
+  if (!/^[A-Z0-9]{16}$/i.test(config.mail_app_password)) {
+    throw new Error(
+      "MAIL_APP_PASSWORD must be a 16-character Google App Password without spaces.",
+    );
+  }
+
+  if (config.node_env === "production") {
+    const shortSecrets = [
+      ["JWT_SECRET", config.jwt_secret],
+      ["OTP_SECRET", config.otp_secret],
+    ]
+      .filter(([, value]) => value.length < 32)
+      .map(([name]) => name);
+
+    if (shortSecrets.length > 0) {
+      throw new Error(
+        `${shortSecrets.join(", ")} must be at least 32 characters in production.`,
+      );
+    }
+
+    let databaseUrl;
+    try {
+      databaseUrl = new URL(config.database_url);
+    } catch {
+      throw new Error("DATABASE_URL must be a valid absolute URL.");
+    }
+
+    if (!["postgres:", "postgresql:"].includes(databaseUrl.protocol)) {
+      throw new Error("DATABASE_URL must use the postgres or postgresql protocol.");
+    }
+
+    let clientUrl;
+    try {
+      clientUrl = new URL(config.client_url);
+    } catch {
+      throw new Error("CLIENT_URL must be a valid absolute URL.");
+    }
+
+    if (clientUrl.protocol !== "https:") {
+      throw new Error("CLIENT_URL must use HTTPS in production.");
+    }
+  }
+};
+
 export const corsOptions = {
   origin: config.client_url, // Allow only this domain (e.g., your React Vite dev server)
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH"], // Allowed HTTP methods
