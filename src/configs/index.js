@@ -23,6 +23,10 @@ export const config = {
   otp_secret: process.env.OTP_SECRET || "",
   mail_user: process.env.MAIL_USER || "",
   mail_app_password: process.env.MAIL_APP_PASSWORD || "",
+  mailjet_api_key: process.env.MAILJET_API_KEY || "",
+  mailjet_secret_key: process.env.MAILJET_SECRET_KEY || "",
+  mail_from_email: process.env.MAIL_FROM_EMAIL || "",
+  mail_from_name: process.env.MAIL_FROM_NAME || "SpecHUB",
   node_env: process.env.NODE_ENV || "development",
   trust_proxy_hops: getNonNegativeInteger(
     process.env.TRUST_PROXY_HOPS,
@@ -60,8 +64,10 @@ const REQUIRED_RUNTIME_CONFIG = [
   ["CLIENT_URL", config.client_url],
   ["JWT_SECRET", config.jwt_secret],
   ["OTP_SECRET", config.otp_secret],
-  ["MAIL_USER", config.mail_user],
-  ["MAIL_APP_PASSWORD", config.mail_app_password],
+  ["MAILJET_API_KEY", config.mailjet_api_key],
+  ["MAILJET_SECRET_KEY", config.mailjet_secret_key],
+  ["MAIL_FROM_EMAIL", config.mail_from_email],
+  ["MAIL_FROM_NAME", config.mail_from_name],
 ];
 
 export const validateRuntimeConfig = () => {
@@ -89,14 +95,10 @@ export const validateRuntimeConfig = () => {
     throw new Error("PORT must be a positive integer.");
   }
 
-  if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(config.mail_user)) {
-    throw new Error("MAIL_USER must be a plain email address.");
-  }
-
-  if (!/^[A-Z0-9]{16}$/i.test(config.mail_app_password)) {
-    throw new Error(
-      "MAIL_APP_PASSWORD must be a 16-character Google App Password without spaces.",
-    );
+  if (
+    !/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(config.mail_from_email)
+  ) {
+    throw new Error("MAIL_FROM_EMAIL must be a plain email address.");
   }
 
   if (config.node_env === "production") {

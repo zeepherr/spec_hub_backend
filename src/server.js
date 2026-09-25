@@ -7,7 +7,7 @@ import {
   stopCheckoutExpirationJob,
 } from "./jobs/checkout-expiration.job.js";
 import { createSocketServer } from "./sockets/index.js";
-import { verifyEmailTransport } from "./utils/email.util.js";
+import { verifyEmailTransport } from "./utils/mailjet-email.util.js";
 import { shutdown } from "./utils/shutdown.js";
 
 const PORT = config.port;

@@ -22,7 +22,8 @@ import {
   clearRefreshCookieOptions,
   refreshCookieOptions,
 } from "../utils/cookie.util.js";
-import { checkEmailDomain, sendRegistrationOtp } from "../utils/email.util.js";
+import { checkEmailDomain } from "../utils/email.util.js";
+import { sendRegistrationOtp } from "../utils/mailjet-email.util.js";
 import {
   createAccessToken,
   createRefreshToken,
